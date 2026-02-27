@@ -2,6 +2,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const squareSize = 20;
 
+// World bounds for camera panning
 const WORLD_WIDTH = 3000;
 const WORLD_HEIGHT = 2400;
 
@@ -14,84 +15,70 @@ let dragStart = { x: 0, y: 0 };
 let cameraStart = { x: 0, y: 0 };
 
 
-// --- Silverstone-ish Track Definition ---
+// --- Roebling Road Raceway Definition ---
+// Coordinate Space: 3000x2400.
+// Center ~1500, 1200.
+
 const trackOuterPath = new Path2D();
-// Start Hamilton Straight (Left/Top boundary)
-trackOuterPath.moveTo(1100, 1850);
-trackOuterPath.lineTo(1600, 1850);
-// Abbey (Right)
-trackOuterPath.bezierCurveTo(1900, 1850, 2000, 1750, 2050, 1600);
-// Farm (Leftish)
-trackOuterPath.quadraticCurveTo(2080, 1500, 2150, 1450);
-// Village (Right)
-trackOuterPath.quadraticCurveTo(2300, 1400, 2300, 1600);
-// The Loop (Left)
-trackOuterPath.bezierCurveTo(2300, 1800, 2000, 1800, 1900, 1950);
-// Aintree (Left to Wellington)
-trackOuterPath.quadraticCurveTo(1850, 2050, 1700, 2050);
-// Wellington Straight
-trackOuterPath.lineTo(1000, 2050);
-// Brooklands (Left)
-trackOuterPath.bezierCurveTo(700, 2050, 600, 1700, 800, 1600);
-// Luffield (Right 180)
-trackOuterPath.bezierCurveTo(1000, 1500, 1100, 1300, 1000, 1100);
-// Woodcote (Right)
-trackOuterPath.quadraticCurveTo(950, 1000, 1200, 900);
-// National Straight
-trackOuterPath.lineTo(1600, 800);
-// Copse (Right)
-trackOuterPath.bezierCurveTo(1900, 750, 2100, 800, 2200, 1000);
-// Maggotts / Becketts / Chapel (Esses)
-trackOuterPath.bezierCurveTo(2300, 1100, 2400, 1100, 2500, 1000);
-trackOuterPath.bezierCurveTo(2600, 900, 2700, 900, 2800, 1100);
-// Hangar Straight
-trackOuterPath.lineTo(2600, 1800);
-// Stowe (Right)
-trackOuterPath.bezierCurveTo(2550, 2100, 2300, 2200, 2100, 2100);
-// Vale (Straightish)
-trackOuterPath.lineTo(1800, 2050);
-// Club (Right)
-trackOuterPath.bezierCurveTo(1500, 2100, 1300, 2000, 1100, 1850);
+// Bottom Straight (moving left to right)
+trackOuterPath.moveTo(600, 1800);
+trackOuterPath.lineTo(2400, 1800);
+// Turn 9 (Sweeping right onto front straight)
+// Since we are drawing clockwise, we do this at the end.
+// Actually let's draw clockwise from the start of the bottom straight.
+// Starting at bottom left, moving left-to-right.
+// Start at Turn 1 apex (bottom left hook)
+trackOuterPath.moveTo(600, 1800);
+// Bottom Straight
+trackOuterPath.lineTo(2400, 1800);
+
+// Turn 8/9 (Sweeping Right to go UP)
+trackOuterPath.bezierCurveTo(2700, 1800, 2700, 1600, 2600, 1200);
+
+// Turn 6/7 (Large Right loop at the top)
+trackOuterPath.bezierCurveTo(2500, 800, 2300, 600, 2100, 600);
+trackOuterPath.bezierCurveTo(1900, 600, 1900, 800, 2000, 1200);
+
+// Turn 5 (Left dip)
+trackOuterPath.bezierCurveTo(2050, 1400, 1950, 1500, 1800, 1500);
+trackOuterPath.bezierCurveTo(1650, 1500, 1600, 1400, 1500, 1200);
+
+// Turn 4 (Right peak)
+trackOuterPath.bezierCurveTo(1400, 1000, 1200, 1000, 1100, 1200);
+
+// Turn 3 (Sweeping left down)
+trackOuterPath.bezierCurveTo(1000, 1400, 800, 1500, 600, 1400);
+
+// Turn 1/2 (U-turn on the left to join bottom straight)
+trackOuterPath.bezierCurveTo(300, 1300, 300, 1800, 600, 1800);
 
 
 const trackInnerPath = new Path2D();
-// Offset approx width
-// Hamilton Straight Inner (Right/Bottom boundary)
-trackInnerPath.moveTo(1100, 1950);
-trackInnerPath.lineTo(1600, 1950);
-// Abbey
-trackInnerPath.bezierCurveTo(1800, 1950, 1900, 1850, 1950, 1650);
-// Farm
-trackInnerPath.quadraticCurveTo(1980, 1550, 2050, 1550);
-// Village
-trackInnerPath.quadraticCurveTo(2150, 1550, 2150, 1650);
-// The Loop
-trackInnerPath.bezierCurveTo(2150, 1750, 2000, 1750, 1950, 1850);
-// Aintree
-trackInnerPath.quadraticCurveTo(1900, 1950, 1700, 1950);
-// Wellington
-trackInnerPath.lineTo(1000, 1950);
-// Brooklands
-trackInnerPath.bezierCurveTo(800, 1950, 750, 1700, 900, 1650);
-// Luffield
-trackInnerPath.bezierCurveTo(1100, 1600, 1200, 1300, 1100, 1150);
-// Woodcote
-trackInnerPath.quadraticCurveTo(1050, 1050, 1200, 1000);
-// National Straight
-trackInnerPath.lineTo(1600, 900);
-// Copse
-trackInnerPath.bezierCurveTo(1800, 850, 2000, 900, 2100, 1050);
-// Maggotts / Becketts
-trackInnerPath.bezierCurveTo(2200, 1200, 2400, 1200, 2500, 1100);
-trackInnerPath.bezierCurveTo(2550, 1050, 2600, 1050, 2650, 1150);
-// Hangar Straight
-trackInnerPath.lineTo(2450, 1850);
-// Stowe
-trackInnerPath.bezierCurveTo(2400, 2000, 2300, 2100, 2100, 2000);
-// Vale
-trackInnerPath.lineTo(1800, 1950);
-// Club
-trackInnerPath.bezierCurveTo(1600, 2000, 1400, 2000, 1100, 1950);
+// Draw inside, keeping distance ~120px.
+// Start at Turn 1 apex inner
+trackInnerPath.moveTo(600, 1680);
+// Bottom Straight Inner
+trackInnerPath.lineTo(2350, 1680);
+
+// Turn 8/9 Inner
+trackInnerPath.bezierCurveTo(2550, 1680, 2550, 1500, 2480, 1200);
+
+// Turn 6/7 Inner
+trackInnerPath.bezierCurveTo(2400, 900, 2250, 720, 2100, 720);
+trackInnerPath.bezierCurveTo(2000, 720, 2050, 850, 2120, 1200);
+
+// Turn 5 Inner
+trackInnerPath.bezierCurveTo(2150, 1300, 2000, 1380, 1800, 1380);
+trackInnerPath.bezierCurveTo(1600, 1380, 1550, 1300, 1450, 1150);
+
+// Turn 4 Inner
+trackInnerPath.bezierCurveTo(1350, 900, 1250, 900, 1150, 1150);
+
+// Turn 3 Inner
+trackInnerPath.bezierCurveTo(1050, 1350, 850, 1450, 650, 1350);
+
+// Turn 1/2 Inner
+trackInnerPath.bezierCurveTo(450, 1250, 450, 1680, 600, 1680);
 
 
 const trackPath = new Path2D();
@@ -99,13 +86,12 @@ trackPath.addPath(trackOuterPath);
 trackPath.addPath(trackInnerPath);
 
 
-// Start / Finish Line Segment (Hamilton Straight)
-// Vertical line? No, Horizontal-ish.
-// Outer Y=1850, Inner Y=1950. X approx 1400.
-const FL_X1 = 1400;
-const FL_Y1 = 1850; // Outer
-const FL_X2 = 1400;
-const FL_Y2 = 1950; // Inner
+// Start / Finish Line Segment
+// Middle of the bottom straight.
+const FL_X1 = 1500;
+const FL_Y1 = 1680; // Inner
+const FL_X2 = 1500;
+const FL_Y2 = 1800; // Outer
 
 let player;
 let gameState = 'playing'; // 'playing', 'gameover'
@@ -113,14 +99,14 @@ let possibleMoves = [];
 let hoveredMove = null;
 
 function initGame() {
-    // Starting position: Behind finish line (x=1400), midway in width.
-    // X = 1360 (Grid 68)
-    // Y = 1900 (Grid 95)
+    // Starting position: Behind finish line (x=1500), midway in width.
+    // X = 1460 (Grid 73)
+    // Y = 1740 (Grid 87)
     player = {
         id: 0,
-        x: 68, y: 95,
+        x: 73, y: 87,
         vx: 0, vy: 0,
-        path: [{ x: 68, y: 95 }],
+        path: [{ x: 73, y: 87 }],
         crashed: false,
         finished: false,
         hasStarted: false,
@@ -306,10 +292,7 @@ canvas.addEventListener('click', (e) => {
         }
 
         if (p.hasStarted && checkStartFinish(oX, oY, p.x, p.y)) {
-            // Check direction: Moving West to East (Increasing X)
-            // Finish line is vertical-ish at X=1400.
-            // oX < p.x implies crossing left to right.
-            // Or just check that we are "right" of the line now.
+            // Check direction: Moving Left to Right (Increasing X)
             if (p.x > oX || p.x * squareSize > FL_X1) {
                 p.laps++;
                 if (p.laps >= 1) {
@@ -479,24 +462,17 @@ function draw() {
 
 function drawMinimap() {
     const margin = 20;
-    // Base size for minimap
     const maxMMWidth = 300;
     const maxMMHeight = 240;
 
-    // Scale factor to fit WORLD into minimap box
-    // WORLD is 3000x2400.
-    // 3000 * s = 300 => s = 0.1
-    // 2400 * s = 240 => s = 0.1
     const scale = Math.min(maxMMWidth / WORLD_WIDTH, maxMMHeight / WORLD_HEIGHT);
 
     const mmWidth = WORLD_WIDTH * scale;
     const mmHeight = WORLD_HEIGHT * scale;
 
-    // Position: Bottom Left
     const mmX = margin;
     const mmY = canvas.height - mmHeight - margin;
 
-    // Background
     ctx.fillStyle = 'rgba(10, 20, 30, 0.9)';
     ctx.fillRect(mmX, mmY, mmWidth, mmHeight);
 
@@ -508,23 +484,19 @@ function drawMinimap() {
     ctx.translate(mmX, mmY);
     ctx.scale(scale, scale);
 
-    // Draw Track (Simplified)
     ctx.fillStyle = '#2b3a4a';
     ctx.fill(trackPath, 'evenodd');
 
-    // Draw Track Borders (Thinner)
     ctx.strokeStyle = '#00e5ff';
-    ctx.lineWidth = 40; // Needs to be thick to show up at 0.1 scale
+    ctx.lineWidth = 40;
     ctx.stroke(trackOuterPath);
     ctx.stroke(trackInnerPath);
 
-    // Draw Player
     ctx.fillStyle = player.color;
     ctx.beginPath();
-    ctx.arc(player.x * squareSize, player.y * squareSize, 60, 0, Math.PI * 2); // Big dot
+    ctx.arc(player.x * squareSize, player.y * squareSize, 60, 0, Math.PI * 2);
     ctx.fill();
 
-    // Draw Viewport Rectangle
     ctx.strokeStyle = 'rgba(255, 50, 50, 0.8)';
     ctx.lineWidth = 30;
     ctx.strokeRect(camera.x, camera.y, canvas.width, canvas.height);
