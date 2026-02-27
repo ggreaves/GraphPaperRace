@@ -283,7 +283,7 @@ function checkGameEnd() {
     if (player.finished) {
         endGame('Race Finished! Lap Complete!', player.color);
     } else if (player.crashed) {
-        endGame('You Crashed into the Grass!', '#ff0055');
+        endGame('You Crashed!', '#ff0055');
     }
 }
 
