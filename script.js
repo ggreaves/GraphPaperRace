@@ -75,8 +75,8 @@ function initGame() {
     };
 
     // Center camera on player initially
-    camera.x = Math.max(0, Math.min((player.x * squareSize) - canvas.width/2, WORLD_WIDTH - canvas.width));
-    camera.y = Math.max(0, Math.min((player.y * squareSize) - canvas.height/2, WORLD_HEIGHT - canvas.height));
+    camera.x = Math.max(0, Math.min((player.x * squareSize) - canvas.width / 2, WORLD_WIDTH - canvas.width));
+    camera.y = Math.max(0, Math.min((player.y * squareSize) - canvas.height / 2, WORLD_HEIGHT - canvas.height));
 
     gameState = 'playing';
     hoveredMove = null;
@@ -257,7 +257,9 @@ canvas.addEventListener('click', (e) => {
             p.hasStarted = true;
         }
 
-        if (p.hasStarted && checkStartFinish(oX, oY, p.x, p.y)) {
+        // Only allow finishing a lap if they've made a reasonable number of moves 
+        // away from the start line. It takes many moves to complete a 3000x2400 track lap.
+        if (p.hasStarted && p.path.length > 20 && checkStartFinish(oX, oY, p.x, p.y)) {
             // Check direction: Moving Left to Right (Increasing X)
             if (p.x > oX || p.x * squareSize > FL_X1) {
                 p.laps++;
