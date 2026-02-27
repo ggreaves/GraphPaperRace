@@ -14,16 +14,16 @@ const ROWS = canvas.height / squareSize; // 40
 const trackOuterPath = new Path2D();
 trackOuterPath.moveTo(200, 100);
 trackOuterPath.bezierCurveTo(600, 100, 900, 100, 900, 400); // Top straight + Right Turn
-trackOuterPath.bezierCurveTo(900, 500, 800, 700, 500, 700); // Bottom Right curves
-trackOuterPath.bezierCurveTo(300, 700, 100, 600, 100, 400); // Left Hairpin
-trackOuterPath.bezierCurveTo(100, 150, 100, 100, 200, 100); // Connect back
+trackOuterPath.bezierCurveTo(900, 700, 600, 700, 200, 700); // Bottom straight
+trackOuterPath.bezierCurveTo(100, 700, 100, 600, 100, 400); // Left Turn
+trackOuterPath.bezierCurveTo(100, 200, 100, 100, 200, 100); // Connect back
 
 const trackInnerPath = new Path2D();
 // Draw inside the outer track, forming a closed loop
 trackInnerPath.moveTo(300, 250);
 trackInnerPath.bezierCurveTo(600, 250, 750, 250, 750, 400);
-trackInnerPath.bezierCurveTo(750, 500, 700, 550, 500, 550);
-trackInnerPath.bezierCurveTo(400, 550, 250, 500, 250, 400);
+trackInnerPath.bezierCurveTo(750, 550, 600, 550, 300, 550);
+trackInnerPath.bezierCurveTo(250, 550, 250, 500, 250, 400);
 trackInnerPath.bezierCurveTo(250, 300, 250, 250, 300, 250);
 
 // The combined track Path2D for easy point-in-path 'evenodd' checking.
