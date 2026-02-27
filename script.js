@@ -14,84 +14,43 @@ let isDragging = false;
 let dragStart = { x: 0, y: 0 };
 let cameraStart = { x: 0, y: 0 };
 
+const TRACK_WIDTH = 120; // Width of the asphalt
+const TRACK_BORDER_WIDTH = 6; // Width of the blue border (drawn outside)
 
 // --- Roebling Road Raceway Definition ---
-// Coordinate Space: 3000x2400.
-// Center ~1500, 1200.
+// Define a SINGLE centerline path. This ensures mathematically parallel edges when stroked.
+const trackCenterPath = new Path2D();
 
-const trackOuterPath = new Path2D();
-// Bottom Straight (moving left to right)
-trackOuterPath.moveTo(600, 1800);
-trackOuterPath.lineTo(2400, 1800);
-// Turn 9 (Sweeping right onto front straight)
-// Since we are drawing clockwise, we do this at the end.
-// Actually let's draw clockwise from the start of the bottom straight.
-// Starting at bottom left, moving left-to-right.
-// Start at Turn 1 apex (bottom left hook)
-trackOuterPath.moveTo(600, 1800);
 // Bottom Straight
-trackOuterPath.lineTo(2400, 1800);
+trackCenterPath.moveTo(600, 1740);
+trackCenterPath.lineTo(2350, 1740);
 
-// Turn 8/9 (Sweeping Right to go UP)
-trackOuterPath.bezierCurveTo(2700, 1800, 2700, 1600, 2600, 1200);
+// Turn 8/9
+trackCenterPath.bezierCurveTo(2650, 1740, 2650, 1550, 2550, 1200);
 
-// Turn 6/7 (Large Right loop at the top)
-trackOuterPath.bezierCurveTo(2500, 800, 2300, 600, 2100, 600);
-trackOuterPath.bezierCurveTo(1900, 600, 1900, 800, 2000, 1200);
+// Turn 6/7
+trackCenterPath.bezierCurveTo(2450, 850, 2300, 650, 2100, 650);
+trackCenterPath.bezierCurveTo(1950, 650, 1950, 850, 2050, 1200);
 
-// Turn 5 (Left dip)
-trackOuterPath.bezierCurveTo(2050, 1400, 1950, 1500, 1800, 1500);
-trackOuterPath.bezierCurveTo(1650, 1500, 1600, 1400, 1500, 1200);
+// Turn 5
+trackCenterPath.bezierCurveTo(2100, 1350, 2000, 1450, 1850, 1450);
+trackCenterPath.bezierCurveTo(1650, 1450, 1600, 1350, 1500, 1150);
 
-// Turn 4 (Right peak)
-trackOuterPath.bezierCurveTo(1400, 1000, 1200, 1000, 1100, 1200);
+// Turn 4
+trackCenterPath.bezierCurveTo(1380, 950, 1220, 950, 1150, 1150);
 
-// Turn 3 (Sweeping left down)
-trackOuterPath.bezierCurveTo(1000, 1400, 800, 1500, 600, 1400);
+// Turn 3
+trackCenterPath.bezierCurveTo(1050, 1350, 850, 1450, 650, 1350);
 
-// Turn 1/2 (U-turn on the left to join bottom straight)
-trackOuterPath.bezierCurveTo(300, 1300, 300, 1800, 600, 1800);
-
-
-const trackInnerPath = new Path2D();
-// Draw inside, keeping distance ~120px.
-// Start at Turn 1 apex inner
-trackInnerPath.moveTo(600, 1680);
-// Bottom Straight Inner
-trackInnerPath.lineTo(2350, 1680);
-
-// Turn 8/9 Inner
-trackInnerPath.bezierCurveTo(2550, 1680, 2550, 1500, 2480, 1200);
-
-// Turn 6/7 Inner
-trackInnerPath.bezierCurveTo(2400, 900, 2250, 720, 2100, 720);
-trackInnerPath.bezierCurveTo(2000, 720, 2050, 850, 2120, 1200);
-
-// Turn 5 Inner
-trackInnerPath.bezierCurveTo(2150, 1300, 2000, 1380, 1800, 1380);
-trackInnerPath.bezierCurveTo(1600, 1380, 1550, 1300, 1450, 1150);
-
-// Turn 4 Inner
-trackInnerPath.bezierCurveTo(1350, 900, 1250, 900, 1150, 1150);
-
-// Turn 3 Inner
-trackInnerPath.bezierCurveTo(1050, 1350, 850, 1450, 650, 1350);
-
-// Turn 1/2 Inner
-trackInnerPath.bezierCurveTo(450, 1250, 450, 1680, 600, 1680);
-
-
-const trackPath = new Path2D();
-trackPath.addPath(trackOuterPath);
-trackPath.addPath(trackInnerPath);
-
+// Turn 1/2
+trackCenterPath.bezierCurveTo(350, 1250, 350, 1740, 600, 1740);
 
 // Start / Finish Line Segment
-// Middle of the bottom straight.
+// Center is roughly at X=1500, Y=1740
 const FL_X1 = 1500;
-const FL_Y1 = 1680; // Inner
+const FL_Y1 = 1740 - (TRACK_WIDTH / 2);
 const FL_X2 = 1500;
-const FL_Y2 = 1800; // Outer
+const FL_Y2 = 1740 + (TRACK_WIDTH / 2);
 
 let player;
 let gameState = 'playing'; // 'playing', 'gameover'
@@ -166,12 +125,19 @@ function checkTrackCollision(gx, gy) {
     const py = gy * squareSize;
 
     let isTouchingTrack = false;
+
+    // Set line width for collision detection to match the track width
+    ctx.lineWidth = TRACK_WIDTH;
+    ctx.lineCap = 'butt'; // Or 'round' if you want rounded ends, 'butt' is better for continuous
+    ctx.lineJoin = 'round'; // Smooth corners
+
     for (let dx = 0; dx <= steps; dx++) {
         for (let dy = 0; dy <= steps; dy++) {
             const sampleX = px + (dx / steps) * squareSize;
             const sampleY = py + (dy / steps) * squareSize;
 
-            if (ctx.isPointInPath(trackPath, sampleX, sampleY, 'evenodd')) {
+            // Check if point is inside the thick stroke
+            if (ctx.isPointInStroke(trackCenterPath, sampleX, sampleY)) {
                 isTouchingTrack = true;
                 break;
             }
@@ -179,7 +145,7 @@ function checkTrackCollision(gx, gy) {
         if (isTouchingTrack) break;
     }
 
-    return !isTouchingTrack;
+    return !isTouchingTrack; // Crashes if NOT touching
 }
 
 function lineIntersect(p0_x, p0_y, p1_x, p1_y, p2_x, p2_y, p3_x, p3_y) {
@@ -348,11 +314,22 @@ function draw() {
     ctx.save();
     ctx.translate(-camera.x, -camera.y);
 
-    // 1. Draw Track Base
-    ctx.fillStyle = '#1e2938';
-    ctx.fill(trackPath, 'evenodd');
+    // 1. Draw Track Borders (Outer stroke, slightly thicker than asphalt)
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = TRACK_WIDTH + TRACK_BORDER_WIDTH;
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'round';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#00e5ff';
+    ctx.stroke(trackCenterPath);
+    ctx.shadowBlur = 0; // Reset
 
-    // 2. Draw Grid
+    // 2. Draw Track Asphalt (Inner stroke)
+    ctx.strokeStyle = '#1e2938'; // Dark asphalt
+    ctx.lineWidth = TRACK_WIDTH;
+    ctx.stroke(trackCenterPath);
+
+    // 3. Draw Grid (Optional overlay inside or outside, let's draw everywhere for "graph paper" feel)
     ctx.strokeStyle = 'rgba(30, 60, 100, 0.4)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -363,15 +340,6 @@ function draw() {
         ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y);
     }
     ctx.stroke();
-
-    // 3. Draw Track Borders
-    ctx.strokeStyle = '#00e5ff';
-    ctx.lineWidth = 3;
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = '#00e5ff';
-    ctx.stroke(trackOuterPath);
-    ctx.stroke(trackInnerPath);
-    ctx.shadowBlur = 0;
 
     // 4. Draw Start/Finish Line
     ctx.strokeStyle = '#ffd700';
@@ -484,13 +452,17 @@ function drawMinimap() {
     ctx.translate(mmX, mmY);
     ctx.scale(scale, scale);
 
-    ctx.fillStyle = '#2b3a4a';
-    ctx.fill(trackPath, 'evenodd');
-
+    // Draw Track Borders (Thick Stroke)
     ctx.strokeStyle = '#00e5ff';
-    ctx.lineWidth = 40;
-    ctx.stroke(trackOuterPath);
-    ctx.stroke(trackInnerPath);
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = TRACK_WIDTH + TRACK_BORDER_WIDTH;
+    ctx.stroke(trackCenterPath);
+
+    // Draw Track Asphalt (Inner Stroke)
+    ctx.strokeStyle = '#2b3a4a'; // Lighter asphalt for minimap
+    ctx.lineWidth = TRACK_WIDTH;
+    ctx.stroke(trackCenterPath);
 
     ctx.fillStyle = player.color;
     ctx.beginPath();
