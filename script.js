@@ -533,13 +533,4 @@ function drawMinimap() {
 }
 
 // Start
-if (typeof module === 'undefined') {
-    initGame();
-}
-
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        checkStartFinish,
-        lineIntersect
-    };
-}
+initGame();

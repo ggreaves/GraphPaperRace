@@ -4,7 +4,3 @@ test-results/
 package-lock.json
 package.json
 verify_game.spec.js
-npm-debug.log
-yarn-error.log
-coverage/
-.DS_Store
