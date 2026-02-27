@@ -1,0 +1,163 @@
+:root {
+    --bg-color: #050510;
+    --grid-line: rgba(30, 60, 100, 0.4);
+    --wall-color: #1a2533;
+    --wall-border: #00e5ff;
+    --track-color: #2b3a4a;
+    /* Lighter asphalt */
+
+    --p1-color: #00ffaa;
+    /* Neon Green/Cyan for Solo Mode */
+    --p1-glow: 0 0 10px #00ffaa, 0 0 20px #00ffaa;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: #fff;
+    font-family: 'Rajdhani', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    max-width: 1100px;
+    width: 100%;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 1000px;
+}
+
+h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.5rem;
+    color: #fff;
+    text-shadow: 0 0 15px rgba(0, 229, 255, 0.8);
+    letter-spacing: 2px;
+}
+
+.turn-indicator {
+    display: flex;
+    gap: 20px;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.turn-indicator span {
+    padding: 5px 15px;
+    border-radius: 4px;
+    opacity: 0.4;
+    transition: all 0.3s;
+}
+
+#p1-status.active {
+    opacity: 1;
+    color: var(--p1-color);
+    text-shadow: var(--p1-glow);
+    border: 1px solid var(--p1-color);
+    box-shadow: inset 0 0 10px rgba(0, 255, 170, 0.2);
+}
+
+button {
+    background: transparent;
+    border: 1px solid #00e5ff;
+    color: #00e5ff;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    text-transform: uppercase;
+}
+
+button:hover {
+    background: rgba(0, 229, 255, 0.2);
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
+}
+
+.canvas-wrapper {
+    position: relative;
+    width: 1000px;
+    height: 800px;
+    border: 2px solid var(--wall-border);
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.2);
+    /* The background is now grass, we draw the track on canvas */
+    background-color: #0a111a;
+}
+
+canvas {
+    display: block;
+    cursor: crosshair;
+}
+
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(5, 5, 16, 0.85);
+    backdrop-filter: blur(5px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    border-radius: 8px;
+    z-index: 10;
+}
+
+.overlay.hidden {
+    display: none;
+}
+
+#game-over-message {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 4rem;
+    text-shadow: 0 0 20px currentColor;
+}
+
+footer {
+    display: flex;
+    justify-content: space-between;
+    width: 1000px;
+    color: #aaa;
+}
+
+.instructions {
+    max-width: 600px;
+    font-size: 1.1rem;
+}
+
+.speed-readout {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.5rem;
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+#p1-speed,
+#lap-count {
+    color: var(--p1-color);
+    text-shadow: 0 0 5px var(--p1-color);
+}
