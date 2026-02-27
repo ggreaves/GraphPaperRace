@@ -2,43 +2,110 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const squareSize = 20;
 
-const COLS = canvas.width / squareSize; // 50
-const ROWS = canvas.height / squareSize; // 40
+const WORLD_WIDTH = 3000;
+const WORLD_HEIGHT = 2400;
 
-// --- Freehand Track Definition ---
-// We will define an outer boundary and an inner boundary using Canvas Path2D
-// The "trackArea" is the area inside the outer path, EXCLUDING the area inside the inner path.
-// The easiest way is to use `fillRule: 'evenodd'` and draw both boundaries in opposite directions,
-// but Canvas `isPointInPath` can use 'evenodd' natively if we combine paths.
+const COLS = WORLD_WIDTH / squareSize; // 150
+const ROWS = WORLD_HEIGHT / squareSize; // 120
 
+let camera = { x: 0, y: 0 };
+let isDragging = false;
+let dragStart = { x: 0, y: 0 };
+let cameraStart = { x: 0, y: 0 };
+
+
+// --- Silverstone-ish Track Definition ---
 const trackOuterPath = new Path2D();
-trackOuterPath.moveTo(200, 100);
-trackOuterPath.bezierCurveTo(600, 100, 900, 100, 900, 400); // Top straight + Right Turn
-trackOuterPath.bezierCurveTo(900, 500, 800, 700, 500, 700); // Bottom Right curves
-trackOuterPath.bezierCurveTo(300, 700, 100, 600, 100, 400); // Left Hairpin
-trackOuterPath.bezierCurveTo(100, 150, 100, 100, 200, 100); // Connect back
+// Start Hamilton Straight (Left/Top boundary)
+trackOuterPath.moveTo(1100, 1850);
+trackOuterPath.lineTo(1600, 1850);
+// Abbey (Right)
+trackOuterPath.bezierCurveTo(1900, 1850, 2000, 1750, 2050, 1600);
+// Farm (Leftish)
+trackOuterPath.quadraticCurveTo(2080, 1500, 2150, 1450);
+// Village (Right)
+trackOuterPath.quadraticCurveTo(2300, 1400, 2300, 1600);
+// The Loop (Left)
+trackOuterPath.bezierCurveTo(2300, 1800, 2000, 1800, 1900, 1950);
+// Aintree (Left to Wellington)
+trackOuterPath.quadraticCurveTo(1850, 2050, 1700, 2050);
+// Wellington Straight
+trackOuterPath.lineTo(1000, 2050);
+// Brooklands (Left)
+trackOuterPath.bezierCurveTo(700, 2050, 600, 1700, 800, 1600);
+// Luffield (Right 180)
+trackOuterPath.bezierCurveTo(1000, 1500, 1100, 1300, 1000, 1100);
+// Woodcote (Right)
+trackOuterPath.quadraticCurveTo(950, 1000, 1200, 900);
+// National Straight
+trackOuterPath.lineTo(1600, 800);
+// Copse (Right)
+trackOuterPath.bezierCurveTo(1900, 750, 2100, 800, 2200, 1000);
+// Maggotts / Becketts / Chapel (Esses)
+trackOuterPath.bezierCurveTo(2300, 1100, 2400, 1100, 2500, 1000);
+trackOuterPath.bezierCurveTo(2600, 900, 2700, 900, 2800, 1100);
+// Hangar Straight
+trackOuterPath.lineTo(2600, 1800);
+// Stowe (Right)
+trackOuterPath.bezierCurveTo(2550, 2100, 2300, 2200, 2100, 2100);
+// Vale (Straightish)
+trackOuterPath.lineTo(1800, 2050);
+// Club (Right)
+trackOuterPath.bezierCurveTo(1500, 2100, 1300, 2000, 1100, 1850);
+
 
 const trackInnerPath = new Path2D();
-// Draw inside the outer track, forming a closed loop
-trackInnerPath.moveTo(300, 250);
-trackInnerPath.bezierCurveTo(600, 250, 750, 250, 750, 400);
-trackInnerPath.bezierCurveTo(750, 500, 700, 550, 500, 550);
-trackInnerPath.bezierCurveTo(400, 550, 250, 500, 250, 400);
-trackInnerPath.bezierCurveTo(250, 300, 250, 250, 300, 250);
+// Offset approx width
+// Hamilton Straight Inner (Right/Bottom boundary)
+trackInnerPath.moveTo(1100, 1950);
+trackInnerPath.lineTo(1600, 1950);
+// Abbey
+trackInnerPath.bezierCurveTo(1800, 1950, 1900, 1850, 1950, 1650);
+// Farm
+trackInnerPath.quadraticCurveTo(1980, 1550, 2050, 1550);
+// Village
+trackInnerPath.quadraticCurveTo(2150, 1550, 2150, 1650);
+// The Loop
+trackInnerPath.bezierCurveTo(2150, 1750, 2000, 1750, 1950, 1850);
+// Aintree
+trackInnerPath.quadraticCurveTo(1900, 1950, 1700, 1950);
+// Wellington
+trackInnerPath.lineTo(1000, 1950);
+// Brooklands
+trackInnerPath.bezierCurveTo(800, 1950, 750, 1700, 900, 1650);
+// Luffield
+trackInnerPath.bezierCurveTo(1100, 1600, 1200, 1300, 1100, 1150);
+// Woodcote
+trackInnerPath.quadraticCurveTo(1050, 1050, 1200, 1000);
+// National Straight
+trackInnerPath.lineTo(1600, 900);
+// Copse
+trackInnerPath.bezierCurveTo(1800, 850, 2000, 900, 2100, 1050);
+// Maggotts / Becketts
+trackInnerPath.bezierCurveTo(2200, 1200, 2400, 1200, 2500, 1100);
+trackInnerPath.bezierCurveTo(2550, 1050, 2600, 1050, 2650, 1150);
+// Hangar Straight
+trackInnerPath.lineTo(2450, 1850);
+// Stowe
+trackInnerPath.bezierCurveTo(2400, 2000, 2300, 2100, 2100, 2000);
+// Vale
+trackInnerPath.lineTo(1800, 1950);
+// Club
+trackInnerPath.bezierCurveTo(1600, 2000, 1400, 2000, 1100, 1950);
 
-// The combined track Path2D for easy point-in-path 'evenodd' checking.
-// Outer path is clockwise, inner path is counter-clockwise.
+
 const trackPath = new Path2D();
 trackPath.addPath(trackOuterPath);
 trackPath.addPath(trackInnerPath);
 
 
-// Start / Finish Line Segment
-// Placed on the bottom straight section, spanning from outer to inner boundary mathematically.
-const FL_X1 = 500;
-const FL_Y1 = 550; // Inner boundary
-const FL_X2 = 500;
-const FL_Y2 = 700; // Outer boundary
+// Start / Finish Line Segment (Hamilton Straight)
+// Vertical line? No, Horizontal-ish.
+// Outer Y=1850, Inner Y=1950. X approx 1400.
+const FL_X1 = 1400;
+const FL_Y1 = 1850; // Outer
+const FL_X2 = 1400;
+const FL_Y2 = 1950; // Inner
 
 let player;
 let gameState = 'playing'; // 'playing', 'gameover'
@@ -46,13 +113,14 @@ let possibleMoves = [];
 let hoveredMove = null;
 
 function initGame() {
-    // Starting position: Grid coordinates slightly before the finish line
-    // The finish line is at x=500 (cx=25). We'll start at cx=22, cy=31.
+    // Starting position: Behind finish line (x=1400), midway in width.
+    // X = 1360 (Grid 68)
+    // Y = 1900 (Grid 95)
     player = {
         id: 0,
-        x: 22, y: 31,
+        x: 68, y: 95,
         vx: 0, vy: 0,
-        path: [{ x: 22, y: 31 }],
+        path: [{ x: 68, y: 95 }],
         crashed: false,
         finished: false,
         hasStarted: false,
@@ -60,6 +128,10 @@ function initGame() {
         color: '#00ffaa',
         glow: '#00ffaa'
     };
+
+    // Center camera on player initially
+    camera.x = Math.max(0, Math.min((player.x * squareSize) - canvas.width/2, WORLD_WIDTH - canvas.width));
+    camera.y = Math.max(0, Math.min((player.y * squareSize) - canvas.height/2, WORLD_HEIGHT - canvas.height));
 
     gameState = 'playing';
     hoveredMove = null;
@@ -88,7 +160,7 @@ function calculatePossibleMoves() {
             const newX = p.x + newVx;
             const newY = p.y + newVy;
 
-            // Screen bounds
+            // Screen bounds (World bounds now)
             if (newX >= 0 && newX <= COLS && newY >= 0 && newY <= ROWS) {
                 possibleMoves.push({
                     x: newX,
@@ -102,12 +174,8 @@ function calculatePossibleMoves() {
     }
 }
 
-// Check if ANY PART of the 20x20 destination square overlaps the track.
-// If it does NOT overlap the track at all, it's a grass crash.
 function checkTrackCollision(gx, gy) {
-    // The grid square is defined from (gx * squareSize) to (gx * squareSize + squareSize)
-    // We can sample a grid of points within this square to see if any are in the track path.
-    const steps = 4; // Sample a 4x4 grid within the 20px square (every 5px)
+    const steps = 4;
     const px = gx * squareSize;
     const py = gy * squareSize;
 
@@ -117,7 +185,6 @@ function checkTrackCollision(gx, gy) {
             const sampleX = px + (dx / steps) * squareSize;
             const sampleY = py + (dy / steps) * squareSize;
 
-            // Check 'evenodd' rule. It returns true if it's inside outer but outside inner.
             if (ctx.isPointInPath(trackPath, sampleX, sampleY, 'evenodd')) {
                 isTouchingTrack = true;
                 break;
@@ -126,12 +193,9 @@ function checkTrackCollision(gx, gy) {
         if (isTouchingTrack) break;
     }
 
-    // Crashes if it is NOT touching the track
     return !isTouchingTrack;
 }
 
-// Line segment intersection to check passing the finish line
-// Returns true if the segments (p0_x, p0_y)->(p1_x, p1_y) and (p2_x, p2_y)->(p3_x, p3_y) intersect
 function lineIntersect(p0_x, p0_y, p1_x, p1_y, p2_x, p2_y, p3_x, p3_y) {
     let s1_x, s1_y, s2_x, s2_y;
     s1_x = p1_x - p0_x;
@@ -146,7 +210,7 @@ function lineIntersect(p0_x, p0_y, p1_x, p1_y, p2_x, p2_y, p3_x, p3_y) {
     if (s >= 0 && s <= 1 && t >= 0 && t <= 1) {
         return true;
     }
-    return false; // No collision
+    return false;
 }
 
 function checkStartFinish(oldGX, oldGY, newGX, newGY) {
@@ -155,24 +219,49 @@ function checkStartFinish(oldGX, oldGY, newGX, newGY) {
     const nX = newGX * squareSize;
     const nY = newGY * squareSize;
 
-    // Check intersection with FL line
     return lineIntersect(oX, oY, nX, nY, FL_X1, FL_Y1, FL_X2, FL_Y2);
 }
 
+canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    dragStart = { x: e.clientX, y: e.clientY };
+    cameraStart = { x: camera.x, y: camera.y };
+});
+
 canvas.addEventListener('mousemove', (e) => {
     if (gameState !== 'playing') return;
+
+    if (isDragging) {
+        const dx = e.clientX - dragStart.x;
+        const dy = e.clientY - dragStart.y;
+
+        let newCamX = cameraStart.x - dx;
+        let newCamY = cameraStart.y - dy;
+
+        const maxCamX = WORLD_WIDTH - canvas.width;
+        const maxCamY = WORLD_HEIGHT - canvas.height;
+
+        camera.x = Math.max(0, Math.min(newCamX, maxCamX));
+        camera.y = Math.max(0, Math.min(newCamY, maxCamY));
+
+        draw();
+        return;
+    }
 
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
+    const worldX = mx + camera.x;
+    const worldY = my + camera.y;
+
     hoveredMove = null;
-    let minDist = 15; // Hit radius
+    let minDist = 15;
 
     for (let move of possibleMoves) {
         const scx = move.x * squareSize;
         const scy = move.y * squareSize;
-        const dist = Math.hypot(mx - scx, my - scy);
+        const dist = Math.hypot(worldX - scx, worldY - scy);
 
         if (dist < minDist) {
             minDist = dist;
@@ -183,8 +272,19 @@ canvas.addEventListener('mousemove', (e) => {
     draw();
 });
 
+canvas.addEventListener('mouseup', () => {
+    isDragging = false;
+});
+
+canvas.addEventListener('mouseleave', () => {
+    isDragging = false;
+});
+
 canvas.addEventListener('click', (e) => {
     if (gameState !== 'playing' || !hoveredMove) return;
+
+    const dist = Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y);
+    if (dist > 5) return;
 
     const p = player;
     const move = hoveredMove;
@@ -192,7 +292,6 @@ canvas.addEventListener('click', (e) => {
     const oX = p.x;
     const oY = p.y;
 
-    // Update player
     p.path.push({ x: move.x, y: move.y });
     p.vx = move.vx;
     p.vy = move.vy;
@@ -202,19 +301,16 @@ canvas.addEventListener('click', (e) => {
     if (move.crashes) {
         p.crashed = true;
     } else {
-        // Did we gain velocity? (Race logic starts)
         if (Math.hypot(p.vx, p.vy) > 0 && !p.hasStarted) {
-            // Once we move right past start blocks, we are started.
-            // Let's ensure we just consider ANY movement from initial zero velocity as a start.
             p.hasStarted = true;
         }
 
         if (p.hasStarted && checkStartFinish(oX, oY, p.x, p.y)) {
-            // Crossed the line!
-            // Ensure they completed a lap and didn't just back up. 
-            // The finish line is at x=500. They start to the left of it, and should hit it from the right (moving left).
-            // E.g. newX.x < oldX.x
-            if (oX > p.x || oX * squareSize > FL_X1) {
+            // Check direction: Moving West to East (Increasing X)
+            // Finish line is vertical-ish at X=1400.
+            // oX < p.x implies crossing left to right.
+            // Or just check that we are "right" of the line now.
+            if (p.x > oX || p.x * squareSize > FL_X1) {
                 p.laps++;
                 if (p.laps >= 1) {
                     p.finished = true;
@@ -266,19 +362,22 @@ document.getElementById('play-again-btn').addEventListener('click', initGame);
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. Draw Track Base (Asphalt)
-    ctx.fillStyle = '#1e2938'; // Dark asphalt
+    ctx.save();
+    ctx.translate(-camera.x, -camera.y);
+
+    // 1. Draw Track Base
+    ctx.fillStyle = '#1e2938';
     ctx.fill(trackPath, 'evenodd');
 
-    // 2. Draw Grid (Optional overlay inside or outside, let's draw everywhere for "graph paper" feel)
+    // 2. Draw Grid
     ctx.strokeStyle = 'rgba(30, 60, 100, 0.4)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let x = 0; x <= canvas.width; x += squareSize) {
-        ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+    for (let x = 0; x <= WORLD_WIDTH; x += squareSize) {
+        ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT);
     }
-    for (let y = 0; y <= canvas.height; y += squareSize) {
-        ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+    for (let y = 0; y <= WORLD_HEIGHT; y += squareSize) {
+        ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y);
     }
     ctx.stroke();
 
@@ -289,17 +388,17 @@ function draw() {
     ctx.shadowColor = '#00e5ff';
     ctx.stroke(trackOuterPath);
     ctx.stroke(trackInnerPath);
-    ctx.shadowBlur = 0; // Reset
+    ctx.shadowBlur = 0;
 
     // 4. Draw Start/Finish Line
-    ctx.strokeStyle = '#ffd700'; // Gold finish line
+    ctx.strokeStyle = '#ffd700';
     ctx.lineWidth = 5;
-    ctx.setLineDash([10, 10]); // Checkered look approximation
+    ctx.setLineDash([10, 10]);
     ctx.beginPath();
     ctx.moveTo(FL_X1, FL_Y1);
     ctx.lineTo(FL_X2, FL_Y2);
     ctx.stroke();
-    ctx.setLineDash([]); // Reset
+    ctx.setLineDash([]);
 
 
     // 5. Draw Player Path
@@ -315,14 +414,12 @@ function draw() {
 
         ctx.strokeStyle = p.color;
 
-        // Add glow
         ctx.shadowBlur = p.crashed ? 0 : 10;
         ctx.shadowColor = p.glow;
 
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // Draw dots at vertices
         ctx.shadowBlur = 0;
         for (let i = 0; i < p.path.length; i++) {
             ctx.beginPath();
@@ -331,7 +428,6 @@ function draw() {
             ctx.fill();
 
             if (p.crashed && i === p.path.length - 1) {
-                // Draw cross for crash
                 ctx.strokeStyle = '#ff0055';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
@@ -344,7 +440,7 @@ function draw() {
         }
     }
 
-    // 6. Draw Possible Moves and Inertia Line
+    // 6. Draw Possible Moves
     if (gameState === 'playing') {
         const inertiaX = p.x + p.vx;
         const inertiaY = p.y + p.vy;
@@ -356,14 +452,14 @@ function draw() {
         ctx.setLineDash([5, 5]);
         ctx.lineWidth = 2;
         ctx.stroke();
-        ctx.setLineDash([]); // Reset
+        ctx.setLineDash([]);
 
         if (hoveredMove) {
             ctx.beginPath();
             ctx.arc(hoveredMove.x * squareSize, hoveredMove.y * squareSize, 8, 0, Math.PI * 2);
 
             if (hoveredMove.crashes) {
-                ctx.fillStyle = 'rgba(255, 0, 85, 0.8)'; // Red for crash spots
+                ctx.fillStyle = 'rgba(255, 0, 85, 0.8)';
             } else {
                 ctx.fillStyle = player.color;
             }
@@ -375,6 +471,65 @@ function draw() {
             ctx.stroke();
         }
     }
+
+    ctx.restore();
+
+    drawMinimap();
+}
+
+function drawMinimap() {
+    const margin = 20;
+    // Base size for minimap
+    const maxMMWidth = 300;
+    const maxMMHeight = 240;
+
+    // Scale factor to fit WORLD into minimap box
+    // WORLD is 3000x2400.
+    // 3000 * s = 300 => s = 0.1
+    // 2400 * s = 240 => s = 0.1
+    const scale = Math.min(maxMMWidth / WORLD_WIDTH, maxMMHeight / WORLD_HEIGHT);
+
+    const mmWidth = WORLD_WIDTH * scale;
+    const mmHeight = WORLD_HEIGHT * scale;
+
+    // Position: Bottom Left
+    const mmX = margin;
+    const mmY = canvas.height - mmHeight - margin;
+
+    // Background
+    ctx.fillStyle = 'rgba(10, 20, 30, 0.9)';
+    ctx.fillRect(mmX, mmY, mmWidth, mmHeight);
+
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(mmX, mmY, mmWidth, mmHeight);
+
+    ctx.save();
+    ctx.translate(mmX, mmY);
+    ctx.scale(scale, scale);
+
+    // Draw Track (Simplified)
+    ctx.fillStyle = '#2b3a4a';
+    ctx.fill(trackPath, 'evenodd');
+
+    // Draw Track Borders (Thinner)
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 40; // Needs to be thick to show up at 0.1 scale
+    ctx.stroke(trackOuterPath);
+    ctx.stroke(trackInnerPath);
+
+    // Draw Player
+    ctx.fillStyle = player.color;
+    ctx.beginPath();
+    ctx.arc(player.x * squareSize, player.y * squareSize, 60, 0, Math.PI * 2); // Big dot
+    ctx.fill();
+
+    // Draw Viewport Rectangle
+    ctx.strokeStyle = 'rgba(255, 50, 50, 0.8)';
+    ctx.lineWidth = 30;
+    ctx.strokeRect(camera.x, camera.y, canvas.width, canvas.height);
+
+    ctx.restore();
 }
 
 // Start
