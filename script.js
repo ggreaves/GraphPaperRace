@@ -76,10 +76,16 @@ socket = io('https://graphpaperrace-567699476890.us-east1.run.app', {
     transports: ['websocket', 'polling']
 });
 
+const addBotBtn = document.getElementById('add-bot-btn');
+
 // UI Event Listeners
 joinBtn.addEventListener('click', () => {
     const name = nameInput.value.trim();
     socket.emit('join_lobby', name);
+});
+
+addBotBtn.addEventListener('click', () => {
+    socket.emit('add_bot');
 });
 
 readyBtn.addEventListener('click', () => {
@@ -87,9 +93,12 @@ readyBtn.addEventListener('click', () => {
     socket.emit('player_ready', true);
 });
 
+let serverPlayers = {};
+
 socket.on('server_state', (data) => {
     gameState = data.gameState;
     const players = data.players;
+    serverPlayers = players;
 
     // Update Lobby UI
     if (gameState === 'lobby') {
@@ -118,10 +127,17 @@ socket.on('server_state', (data) => {
                 document.getElementById('name-input-group').classList.add('hidden');
                 readyBtn.classList.remove('hidden');
 
+                if (ids.length === 1) {
+                    addBotBtn.classList.remove('hidden');
+                } else {
+                    addBotBtn.classList.add('hidden');
+                }
+
                 if (players[socket.id].ready) {
                     readyBtn.innerText = "WAITING FOR OPPONENT...";
                     readyBtn.disabled = true;
                     readyBtn.style.opacity = '0.5';
+                    addBotBtn.classList.add('hidden');
                 } else {
                     readyBtn.innerText = "I'M READY";
                     readyBtn.disabled = false;
@@ -130,11 +146,13 @@ socket.on('server_state', (data) => {
             } else {
                 document.getElementById('name-input-group').classList.remove('hidden');
                 readyBtn.classList.add('hidden');
+                addBotBtn.classList.add('hidden');
             }
         } else {
             playersList.classList.add('hidden');
             document.getElementById('name-input-group').classList.remove('hidden');
             readyBtn.classList.add('hidden');
+            addBotBtn.classList.add('hidden');
         }
     }
 });
@@ -193,6 +211,19 @@ socket.on('game_over', (data) => {
     draw();
 });
 
+let botInterval = null;
+
+const botWaypoints = [
+    { x: 75, y: 87 }, { x: 100, y: 87 }, { x: 110, y: 87 }, // Start finish and straight
+    { x: 125, y: 70 }, { x: 130, y: 60 }, // Turn 8/9
+    { x: 120, y: 40 }, { x: 110, y: 35 }, { x: 100, y: 35 }, // Turn 6/7
+    { x: 90, y: 55 }, { x: 80, y: 70 }, // Straight before T5
+    { x: 70, y: 65 }, { x: 60, y: 50 }, // Turn 4/5
+    { x: 45, y: 70 }, // Turn 3
+    { x: 25, y: 65 }, { x: 20, y: 75 }, { x: 25, y: 87 }, // Turn 1/2
+    { x: 50, y: 87 }, { x: 75, y: 87 } // Back to start/finish
+];
+
 // --- Game Logic ---
 function initGamePositions() {
     // Determine start positions based on Socket ID sort to separate them slightly
@@ -211,8 +242,24 @@ function initGamePositions() {
         glow: '#00ffaa'
     };
 
+    let opponentName = "Opponent";
+    let isBotOpponent = false;
+    let botOwner = null;
+    let botIdStr = null;
+
+    // Find the opponent in serverPlayers
+    for (let id in serverPlayers) {
+        if (id !== socket.id) {
+            opponentName = serverPlayers[id].name;
+            isBotOpponent = serverPlayers[id].isBot || false;
+            botOwner = serverPlayers[id].ownerId;
+            botIdStr = id;
+        }
+    }
+
     opponentPlayer = {
-        name: "Opponent",
+        id: botIdStr,
+        name: opponentName, // Will be updated by server_state or hardcoded for now
         x: 73, y: 89, // Player 2 slot (shifted down slightly)
         vx: 0, vy: 0,
         path: [{ x: 73, y: 89 }],
@@ -221,8 +268,17 @@ function initGamePositions() {
         hasStarted: false,
         moves: 0,
         color: '#ff00aa', // Pink
-        glow: '#ff00aa'
+        glow: '#ff00aa',
+        isBot: isBotOpponent,
+        currentWaypoint: 0,
+        ownerId: botOwner
     };
+
+    if (botInterval) clearTimeout(botInterval);
+    if (isBotOpponent && botOwner === socket.id) {
+        // I am the bot owner, I compute the bot moves
+        startBotLoop();
+    }
 
     // Center camera on myPlayer initially
     camera.x = Math.max(0, Math.min((myPlayer.x * squareSize) - canvas.width / 2, WORLD_WIDTH - canvas.width));
@@ -232,6 +288,88 @@ function initGamePositions() {
     updateUI();
     calculatePossibleMoves();
     draw();
+}
+
+function startBotLoop() {
+    let botDelay = 3000;
+
+    function moveBot() {
+        if (gameState !== 'playing') return;
+        if (opponentPlayer.crashed || opponentPlayer.finished) return;
+
+        let target = botWaypoints[opponentPlayer.currentWaypoint];
+        if (!target) target = botWaypoints[0];
+
+        const distToWaypoint = Math.hypot(target.x - opponentPlayer.x, target.y - opponentPlayer.y);
+        if (distToWaypoint < 15) {
+            opponentPlayer.currentWaypoint = (opponentPlayer.currentWaypoint + 1) % botWaypoints.length;
+            target = botWaypoints[opponentPlayer.currentWaypoint];
+        }
+
+        let bestMove = null;
+        let bestDist = Infinity;
+
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                const newVx = opponentPlayer.vx + dx;
+                const newVy = opponentPlayer.vy + dy;
+                const newX = opponentPlayer.x + newVx;
+                const newY = opponentPlayer.y + newVy;
+
+                if (!checkTrackCollision(newX, newY)) continue;
+
+                const d = Math.hypot(target.x - (newX + newVx * 2), target.y - (newY + newVy * 2));
+                if (d < bestDist) {
+                    bestDist = d;
+                    bestMove = { x: newX, y: newY, vx: newVx, vy: newVy };
+                }
+            }
+        }
+
+        if (bestMove) {
+            const oX = opponentPlayer.x;
+            const oY = opponentPlayer.y;
+            opponentPlayer.path.push({ x: bestMove.x, y: bestMove.y });
+            opponentPlayer.vx = bestMove.vx;
+            opponentPlayer.vy = bestMove.vy;
+            opponentPlayer.x = bestMove.x;
+            opponentPlayer.y = bestMove.y;
+            opponentPlayer.moves++;
+
+            if (opponentPlayer.moves > 0 && !opponentPlayer.hasStarted) opponentPlayer.hasStarted = true;
+
+            if (opponentPlayer.hasStarted && opponentPlayer.path.length > 20 && checkStartFinish(oX, oY, opponentPlayer.x, opponentPlayer.y)) {
+                if (opponentPlayer.x > oX || (opponentPlayer.x * squareSize + squareSize / 2) > FL_X1) {
+                    socket.emit('bot_finished', { id: opponentPlayer.id });
+                    return;
+                }
+            }
+
+            socket.emit('bot_moved', {
+                id: opponentPlayer.id,
+                x: bestMove.x,
+                y: bestMove.y,
+                vx: bestMove.vx,
+                vy: bestMove.vy
+            });
+
+            updateUI();
+            draw();
+        } else {
+            opponentPlayer.crashed = true;
+            socket.emit('bot_crashed', { id: opponentPlayer.id });
+            return;
+        }
+
+        if (myPlayer && myPlayer.hasStarted) {
+            botDelay = 1500;
+        } else {
+            botDelay = 3000;
+        }
+        botInterval = setTimeout(moveBot, botDelay);
+    }
+
+    botInterval = setTimeout(moveBot, botDelay);
 }
 
 function calculatePossibleMoves() {
@@ -501,6 +639,20 @@ function draw() {
     ctx.lineTo(FL_X2, FL_Y2);
     ctx.stroke();
     ctx.setLineDash([]);
+
+    // Draw Directional Arrow (Counter-Clockwise) above Start/Finish
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.5)';
+    ctx.beginPath();
+    // Arrow pointing Right (since we start going right/counter-clockwise from pit straight)
+    ctx.moveTo(FL_X1 - 20, FL_Y1 - 20);
+    ctx.lineTo(FL_X1 + 20, FL_Y1 - 20);
+    ctx.lineTo(FL_X1 + 20, FL_Y1 - 30);
+    ctx.lineTo(FL_X1 + 40, FL_Y1 - 10);
+    ctx.lineTo(FL_X1 + 20, FL_Y1 + 10);
+    ctx.lineTo(FL_X1 + 20, FL_Y1);
+    ctx.lineTo(FL_X1 - 20, FL_Y1);
+    ctx.closePath();
+    ctx.fill();
 
 
     // 5. Draw Player Paths

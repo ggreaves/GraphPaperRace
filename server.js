@@ -25,10 +25,14 @@ function countReady() {
 function resetGameToLobby() {
     gameState = 'lobby';
     for (let id in players) {
-        players[id].ready = false;
-        players[id].moves = 0;
-        players[id].finished = false;
-        players[id].crashed = false;
+        if (players[id].isBot) {
+            delete players[id];
+        } else {
+            players[id].ready = false;
+            players[id].moves = 0;
+            players[id].finished = false;
+            players[id].crashed = false;
+        }
     }
     io.emit('server_state', { gameState, players });
 }
@@ -90,6 +94,51 @@ io.on('connection', (socket) => {
         });
     });
 
+    socket.on('add_bot', () => {
+        if (Object.keys(players).length >= 2 || gameState !== 'lobby') {
+            return;
+        }
+
+        const botId = 'bot_' + Math.random().toString(36).substr(2, 9);
+        players[botId] = {
+            id: botId,
+            name: "Computer",
+            ready: true, // bot is always ready
+            moves: 0,
+            finished: false,
+            crashed: false,
+            isBot: true,
+            ownerId: socket.id // The human player who added the bot runs the logic
+        };
+
+        console.log(`[Lobby] Computer joined.`);
+        io.emit('server_state', { gameState, players });
+
+        // Start game if 2 people are ready
+        if (countReady() === 2 && Object.keys(players).length === 2 && gameState === 'lobby') {
+            console.log(`[Game] Both players ready. Starting sequence...`);
+            gameState = 'playing';
+            io.emit('server_state', { gameState, players });
+            io.emit('game_started');
+        }
+    });
+
+    socket.on('bot_moved', (data) => {
+        if (gameState !== 'playing') return;
+        const botId = data.id;
+        if (players[botId] && players[botId].isBot) {
+            players[botId].moves++;
+            io.emit('opponent_moved', {
+                id: botId,
+                x: data.x,
+                y: data.y,
+                vx: data.vx,
+                vy: data.vy,
+                moves: players[botId].moves
+            });
+        }
+    });
+
     socket.on('player_crashed', () => {
         if (gameState !== 'playing' || !players[socket.id]) return;
 
@@ -113,11 +162,31 @@ io.on('connection', (socket) => {
         setTimeout(resetGameToLobby, 8000); // Back to lobby in 8s
     });
 
-    socket.on('player_finished', () => {
-        if (gameState !== 'playing' || !players[socket.id]) return;
+    socket.on('bot_crashed', (data) => {
+        if (gameState !== 'playing' || !players[data.id]) return;
 
-        console.log(`[Game] ${players[socket.id].name} finished lap!`);
-        players[socket.id].finished = true;
+        console.log(`[Game] ${players[data.id].name} crashed!`);
+        players[data.id].crashed = true;
+
+        const opponentId = Object.keys(players).find(id => id !== data.id);
+        const opponent = players[opponentId];
+        gameState = 'gameover';
+
+        const winnerName = opponent ? opponent.name : 'Nobody';
+
+        io.emit('game_over', {
+            winner: winnerName,
+            reason: `${players[data.id].name} crashed.`
+        });
+
+        setTimeout(resetGameToLobby, 8000);
+    });
+
+    function handlePlayerFinished(id) {
+        if (gameState !== 'playing' || !players[id]) return;
+
+        console.log(`[Game] ${players[id].name} finished lap!`);
+        players[id].finished = true;
 
         // Broadcast that this player finished
         io.emit('server_state', { gameState, players });
@@ -151,6 +220,16 @@ io.on('connection', (socket) => {
             });
 
             setTimeout(resetGameToLobby, 8000);
+        }
+    }
+
+    socket.on('player_finished', () => {
+        handlePlayerFinished(socket.id);
+    });
+
+    socket.on('bot_finished', (data) => {
+        if (players[data.id] && players[data.id].isBot) {
+            handlePlayerFinished(data.id);
         }
     });
 
