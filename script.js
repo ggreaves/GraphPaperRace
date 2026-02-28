@@ -61,13 +61,28 @@ let possibleMoves = [];
 let hoveredMove = null;
 
 // --- DOM Elements ---
-const lobbyContainer = document.getElementById('lobby-container');
-const gameContainer = document.getElementById('game-container');
-const joinBtn = document.getElementById('join-btn');
-const readyBtn = document.getElementById('ready-btn');
-const nameInput = document.getElementById('player-name-input');
-const playersList = document.getElementById('players-list');
-const playerCountSpan = document.getElementById('player-count');
+let lobbyContainer, gameContainer, joinBtn, readyBtn, nameInput, playersList, playerCountSpan;
+
+document.addEventListener('DOMContentLoaded', () => {
+    lobbyContainer = document.getElementById('lobby-container');
+    gameContainer = document.getElementById('game-container');
+    joinBtn = document.getElementById('join-btn');
+    readyBtn = document.getElementById('ready-btn');
+    nameInput = document.getElementById('player-name-input');
+    playersList = document.getElementById('players-list');
+    playerCountSpan = document.getElementById('player-count');
+
+    // UI Event Listeners
+    joinBtn.addEventListener('click', () => {
+        const name = nameInput.value.trim();
+        socket.emit('join_lobby', name);
+    });
+
+    readyBtn.addEventListener('click', () => {
+        readyBtn.innerText = "WAITING...";
+        socket.emit('player_ready', true);
+    });
+});
 
 // --- Socket Connection & Lobby Logic ---
 socket = io('https://graphpaperrace-567699476890.us-east1.run.app', {
@@ -178,17 +193,6 @@ socket.on('game_over', (data) => {
 
     updateUI();
     draw();
-});
-
-// UI Event Listeners
-joinBtn.addEventListener('click', () => {
-    const name = nameInput.value.trim();
-    socket.emit('join_lobby', name);
-});
-
-readyBtn.addEventListener('click', () => {
-    readyBtn.innerText = "WAITING...";
-    socket.emit('player_ready', true);
 });
 
 // --- Game Logic ---
