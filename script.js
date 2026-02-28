@@ -2,6 +2,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const squareSize = 20;
 
+// World bounds for camera panning
 const WORLD_WIDTH = 3000;
 const WORLD_HEIGHT = 2400;
 
@@ -13,99 +14,43 @@ let isDragging = false;
 let dragStart = { x: 0, y: 0 };
 let cameraStart = { x: 0, y: 0 };
 
+const TRACK_WIDTH = 120; // Width of the asphalt
+const TRACK_BORDER_WIDTH = 6; // Width of the blue border (drawn outside)
 
-// --- Silverstone-ish Track Definition ---
-const trackOuterPath = new Path2D();
-// Start Hamilton Straight (Left/Top boundary)
-trackOuterPath.moveTo(1100, 1850);
-trackOuterPath.lineTo(1600, 1850);
-// Abbey (Right)
-trackOuterPath.bezierCurveTo(1900, 1850, 2000, 1750, 2050, 1600);
-// Farm (Leftish)
-trackOuterPath.quadraticCurveTo(2080, 1500, 2150, 1450);
-// Village (Right)
-trackOuterPath.quadraticCurveTo(2300, 1400, 2300, 1600);
-// The Loop (Left)
-trackOuterPath.bezierCurveTo(2300, 1800, 2000, 1800, 1900, 1950);
-// Aintree (Left to Wellington)
-trackOuterPath.quadraticCurveTo(1850, 2050, 1700, 2050);
-// Wellington Straight
-trackOuterPath.lineTo(1000, 2050);
-// Brooklands (Left)
-trackOuterPath.bezierCurveTo(700, 2050, 600, 1700, 800, 1600);
-// Luffield (Right 180)
-trackOuterPath.bezierCurveTo(1000, 1500, 1100, 1300, 1000, 1100);
-// Woodcote (Right)
-trackOuterPath.quadraticCurveTo(950, 1000, 1200, 900);
-// National Straight
-trackOuterPath.lineTo(1600, 800);
-// Copse (Right)
-trackOuterPath.bezierCurveTo(1900, 750, 2100, 800, 2200, 1000);
-// Maggotts / Becketts / Chapel (Esses)
-trackOuterPath.bezierCurveTo(2300, 1100, 2400, 1100, 2500, 1000);
-trackOuterPath.bezierCurveTo(2600, 900, 2700, 900, 2800, 1100);
-// Hangar Straight
-trackOuterPath.lineTo(2600, 1800);
-// Stowe (Right)
-trackOuterPath.bezierCurveTo(2550, 2100, 2300, 2200, 2100, 2100);
-// Vale (Straightish)
-trackOuterPath.lineTo(1800, 2050);
-// Club (Right)
-trackOuterPath.bezierCurveTo(1500, 2100, 1300, 2000, 1100, 1850);
+// --- Roebling Road Raceway Definition ---
+// Define a SINGLE centerline path. This ensures mathematically parallel edges when stroked.
+const trackCenterPath = new Path2D();
 
+// Bottom Straight
+trackCenterPath.moveTo(600, 1740);
+trackCenterPath.lineTo(2350, 1740);
 
-const trackInnerPath = new Path2D();
-// Offset approx width
-// Hamilton Straight Inner (Right/Bottom boundary)
-trackInnerPath.moveTo(1100, 1950);
-trackInnerPath.lineTo(1600, 1950);
-// Abbey
-trackInnerPath.bezierCurveTo(1800, 1950, 1900, 1850, 1950, 1650);
-// Farm
-trackInnerPath.quadraticCurveTo(1980, 1550, 2050, 1550);
-// Village
-trackInnerPath.quadraticCurveTo(2150, 1550, 2150, 1650);
-// The Loop
-trackInnerPath.bezierCurveTo(2150, 1750, 2000, 1750, 1950, 1850);
-// Aintree
-trackInnerPath.quadraticCurveTo(1900, 1950, 1700, 1950);
-// Wellington
-trackInnerPath.lineTo(1000, 1950);
-// Brooklands
-trackInnerPath.bezierCurveTo(800, 1950, 750, 1700, 900, 1650);
-// Luffield
-trackInnerPath.bezierCurveTo(1100, 1600, 1200, 1300, 1100, 1150);
-// Woodcote
-trackInnerPath.quadraticCurveTo(1050, 1050, 1200, 1000);
-// National Straight
-trackInnerPath.lineTo(1600, 900);
-// Copse
-trackInnerPath.bezierCurveTo(1800, 850, 2000, 900, 2100, 1050);
-// Maggotts / Becketts
-trackInnerPath.bezierCurveTo(2200, 1200, 2400, 1200, 2500, 1100);
-trackInnerPath.bezierCurveTo(2550, 1050, 2600, 1050, 2650, 1150);
-// Hangar Straight
-trackInnerPath.lineTo(2450, 1850);
-// Stowe
-trackInnerPath.bezierCurveTo(2400, 2000, 2300, 2100, 2100, 2000);
-// Vale
-trackInnerPath.lineTo(1800, 1950);
-// Club
-trackInnerPath.bezierCurveTo(1600, 2000, 1400, 2000, 1100, 1950);
+// Turn 8/9
+trackCenterPath.bezierCurveTo(2650, 1740, 2650, 1550, 2550, 1200);
 
+// Turn 6/7
+trackCenterPath.bezierCurveTo(2450, 850, 2300, 650, 2100, 650);
+trackCenterPath.bezierCurveTo(1950, 650, 1950, 850, 2050, 1200);
 
-const trackPath = new Path2D();
-trackPath.addPath(trackOuterPath);
-trackPath.addPath(trackInnerPath);
+// Turn 5
+trackCenterPath.bezierCurveTo(2100, 1350, 2000, 1450, 1850, 1450);
+trackCenterPath.bezierCurveTo(1650, 1450, 1600, 1350, 1500, 1150);
 
+// Turn 4
+trackCenterPath.bezierCurveTo(1380, 950, 1220, 950, 1150, 1150);
 
-// Start / Finish Line Segment (Hamilton Straight)
-// Vertical line? No, Horizontal-ish.
-// Outer Y=1850, Inner Y=1950. X approx 1400.
-const FL_X1 = 1400;
-const FL_Y1 = 1850; // Outer
-const FL_X2 = 1400;
-const FL_Y2 = 1950; // Inner
+// Turn 3
+trackCenterPath.bezierCurveTo(1050, 1350, 850, 1450, 650, 1350);
+
+// Turn 1/2
+trackCenterPath.bezierCurveTo(350, 1250, 350, 1740, 600, 1740);
+
+// Start / Finish Line Segment
+// Center is roughly at X=1500, Y=1740
+const FL_X1 = 1500;
+const FL_Y1 = 1740 - (TRACK_WIDTH / 2);
+const FL_X2 = 1500;
+const FL_Y2 = 1740 + (TRACK_WIDTH / 2);
 
 let player;
 let gameState = 'playing'; // 'playing', 'gameover'
@@ -113,14 +58,14 @@ let possibleMoves = [];
 let hoveredMove = null;
 
 function initGame() {
-    // Starting position: Behind finish line (x=1400), midway in width.
-    // X = 1360 (Grid 68)
-    // Y = 1900 (Grid 95)
+    // Starting position: Behind finish line (x=1500), midway in width.
+    // X = 1460 (Grid 73)
+    // Y = 1740 (Grid 87)
     player = {
         id: 0,
-        x: 68, y: 95,
+        x: 73, y: 87,
         vx: 0, vy: 0,
-        path: [{ x: 68, y: 95 }],
+        path: [{ x: 73, y: 87 }],
         crashed: false,
         finished: false,
         hasStarted: false,
@@ -130,8 +75,8 @@ function initGame() {
     };
 
     // Center camera on player initially
-    camera.x = Math.max(0, Math.min((player.x * squareSize) - canvas.width/2, WORLD_WIDTH - canvas.width));
-    camera.y = Math.max(0, Math.min((player.y * squareSize) - canvas.height/2, WORLD_HEIGHT - canvas.height));
+    camera.x = Math.max(0, Math.min((player.x * squareSize) - canvas.width / 2, WORLD_WIDTH - canvas.width));
+    camera.y = Math.max(0, Math.min((player.y * squareSize) - canvas.height / 2, WORLD_HEIGHT - canvas.height));
 
     gameState = 'playing';
     hoveredMove = null;
@@ -180,12 +125,19 @@ function checkTrackCollision(gx, gy) {
     const py = gy * squareSize;
 
     let isTouchingTrack = false;
+
+    // Set line width for collision detection to match the track width
+    ctx.lineWidth = TRACK_WIDTH;
+    ctx.lineCap = 'butt'; // Or 'round' if you want rounded ends, 'butt' is better for continuous
+    ctx.lineJoin = 'round'; // Smooth corners
+
     for (let dx = 0; dx <= steps; dx++) {
         for (let dy = 0; dy <= steps; dy++) {
             const sampleX = px + (dx / steps) * squareSize;
             const sampleY = py + (dy / steps) * squareSize;
 
-            if (ctx.isPointInPath(trackPath, sampleX, sampleY, 'evenodd')) {
+            // Check if point is inside the thick stroke
+            if (ctx.isPointInStroke(trackCenterPath, sampleX, sampleY)) {
                 isTouchingTrack = true;
                 break;
             }
@@ -193,7 +145,7 @@ function checkTrackCollision(gx, gy) {
         if (isTouchingTrack) break;
     }
 
-    return !isTouchingTrack;
+    return !isTouchingTrack; // Crashes if NOT touching
 }
 
 function lineIntersect(p0_x, p0_y, p1_x, p1_y, p2_x, p2_y, p3_x, p3_y) {
@@ -305,11 +257,10 @@ canvas.addEventListener('click', (e) => {
             p.hasStarted = true;
         }
 
-        if (p.hasStarted && checkStartFinish(oX, oY, p.x, p.y)) {
-            // Check direction: Moving West to East (Increasing X)
-            // Finish line is vertical-ish at X=1400.
-            // oX < p.x implies crossing left to right.
-            // Or just check that we are "right" of the line now.
+        // Only allow finishing a lap if they've made a reasonable number of moves 
+        // away from the start line. It takes many moves to complete a 3000x2400 track lap.
+        if (p.hasStarted && p.path.length > 20 && checkStartFinish(oX, oY, p.x, p.y)) {
+            // Check direction: Moving Left to Right (Increasing X)
             if (p.x > oX || p.x * squareSize > FL_X1) {
                 p.laps++;
                 if (p.laps >= 1) {
@@ -332,7 +283,7 @@ function checkGameEnd() {
     if (player.finished) {
         endGame('Race Finished! Lap Complete!', player.color);
     } else if (player.crashed) {
-        endGame('You Crashed into the Grass!', '#ff0055');
+        endGame('You Crashed!', '#ff0055');
     }
 }
 
@@ -365,11 +316,22 @@ function draw() {
     ctx.save();
     ctx.translate(-camera.x, -camera.y);
 
-    // 1. Draw Track Base
-    ctx.fillStyle = '#1e2938';
-    ctx.fill(trackPath, 'evenodd');
+    // 1. Draw Track Borders (Outer stroke, slightly thicker than asphalt)
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = TRACK_WIDTH + TRACK_BORDER_WIDTH;
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'round';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#00e5ff';
+    ctx.stroke(trackCenterPath);
+    ctx.shadowBlur = 0; // Reset
 
-    // 2. Draw Grid
+    // 2. Draw Track Asphalt (Inner stroke)
+    ctx.strokeStyle = '#1e2938'; // Dark asphalt
+    ctx.lineWidth = TRACK_WIDTH;
+    ctx.stroke(trackCenterPath);
+
+    // 3. Draw Grid (Optional overlay inside or outside, let's draw everywhere for "graph paper" feel)
     ctx.strokeStyle = 'rgba(30, 60, 100, 0.4)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -380,15 +342,6 @@ function draw() {
         ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y);
     }
     ctx.stroke();
-
-    // 3. Draw Track Borders
-    ctx.strokeStyle = '#00e5ff';
-    ctx.lineWidth = 3;
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = '#00e5ff';
-    ctx.stroke(trackOuterPath);
-    ctx.stroke(trackInnerPath);
-    ctx.shadowBlur = 0;
 
     // 4. Draw Start/Finish Line
     ctx.strokeStyle = '#ffd700';
@@ -479,24 +432,17 @@ function draw() {
 
 function drawMinimap() {
     const margin = 20;
-    // Base size for minimap
     const maxMMWidth = 300;
     const maxMMHeight = 240;
 
-    // Scale factor to fit WORLD into minimap box
-    // WORLD is 3000x2400.
-    // 3000 * s = 300 => s = 0.1
-    // 2400 * s = 240 => s = 0.1
     const scale = Math.min(maxMMWidth / WORLD_WIDTH, maxMMHeight / WORLD_HEIGHT);
 
     const mmWidth = WORLD_WIDTH * scale;
     const mmHeight = WORLD_HEIGHT * scale;
 
-    // Position: Bottom Left
     const mmX = margin;
     const mmY = canvas.height - mmHeight - margin;
 
-    // Background
     ctx.fillStyle = 'rgba(10, 20, 30, 0.9)';
     ctx.fillRect(mmX, mmY, mmWidth, mmHeight);
 
@@ -508,23 +454,23 @@ function drawMinimap() {
     ctx.translate(mmX, mmY);
     ctx.scale(scale, scale);
 
-    // Draw Track (Simplified)
-    ctx.fillStyle = '#2b3a4a';
-    ctx.fill(trackPath, 'evenodd');
-
-    // Draw Track Borders (Thinner)
+    // Draw Track Borders (Thick Stroke)
     ctx.strokeStyle = '#00e5ff';
-    ctx.lineWidth = 40; // Needs to be thick to show up at 0.1 scale
-    ctx.stroke(trackOuterPath);
-    ctx.stroke(trackInnerPath);
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = TRACK_WIDTH + TRACK_BORDER_WIDTH;
+    ctx.stroke(trackCenterPath);
 
-    // Draw Player
+    // Draw Track Asphalt (Inner Stroke)
+    ctx.strokeStyle = '#2b3a4a'; // Lighter asphalt for minimap
+    ctx.lineWidth = TRACK_WIDTH;
+    ctx.stroke(trackCenterPath);
+
     ctx.fillStyle = player.color;
     ctx.beginPath();
-    ctx.arc(player.x * squareSize, player.y * squareSize, 60, 0, Math.PI * 2); // Big dot
+    ctx.arc(player.x * squareSize, player.y * squareSize, 60, 0, Math.PI * 2);
     ctx.fill();
 
-    // Draw Viewport Rectangle
     ctx.strokeStyle = 'rgba(255, 50, 50, 0.8)';
     ctx.lineWidth = 30;
     ctx.strokeRect(camera.x, camera.y, canvas.width, canvas.height);
@@ -533,13 +479,4 @@ function drawMinimap() {
 }
 
 // Start
-if (typeof module === 'undefined') {
-    initGame();
-}
-
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        checkStartFinish,
-        lineIntersect
-    };
-}
+initGame();
