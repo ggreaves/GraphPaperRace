@@ -12,14 +12,28 @@
 </head>
 
 <body>
-    <div class="game-container">
+    <div id="lobby-container" class="lobby-container">
+        <h1>GRAPH PAPER RACE</h1>
+        <div class="lobby-box">
+            <h2>Race Lobby (<span id="player-count">0</span>/2)</h2>
+            <div id="name-input-group">
+                <input type="text" id="player-name-input" placeholder="Enter Driver Name" maxlength="15">
+                <button id="join-btn">Join Lobby</button>
+            </div>
+
+            <div id="players-list" class="players-list hidden">
+                <!-- Players inserted here -->
+            </div>
+
+            <button id="ready-btn" class="hidden">I'M READY</button>
+        </div>
+    </div>
+
+    <div id="game-container" class="game-container hidden">
         <header>
             <h1>GRAPH PAPER RACE</h1>
             <div class="turn-indicator">
-                <span id="p1-status" class="active">Race Mode (Solo)</span>
-            </div>
-            <div class="controls">
-                <button id="restart-btn">Restart Race</button>
+                <span id="p1-status" class="active">Race Mode (VS)</span>
             </div>
         </header>
 
@@ -27,24 +41,26 @@
             <canvas id="gameCanvas" width="1000" height="800"></canvas>
             <div id="game-over-overlay" class="overlay hidden">
                 <h2 id="game-over-message">You Crashed!</h2>
-                <button id="play-again-btn">Try Again</button>
+                <button id="return-lobby-btn" class="hidden">Return to Lobby</button>
             </div>
         </div>
 
         <footer>
             <div class="instructions">
                 <h3>How to Play</h3>
-                <p>Move your vector by clicking one of the 9 reachable grid points. You maintain your previous velocity
-                    and can change it by -1, 0, or +1 in both X and Y directions. Stay on the asphalt and cross the
-                    finish line to complete a lap!</p>
+                <p>Click your valid vector jumps. The driver with the lowest number of vectors (moves) to cross the
+                    finish line wins!</p>
             </div>
             <div class="speed-readout">
-                <div>Speed: <span id="p1-speed">0</span> km/h</div>
-                <div>Laps: <span id="lap-count">0/1</span></div>
+                <div id="p1-stats" class="stats-row"><span class="name-label" id="p1-name-label">You:</span> <span
+                        id="p1-speed">0</span> km/h | Vectors: <span id="p1-vectors">0</span></div>
+                <div id="p2-stats" class="stats-row"><span class="name-label" id="p2-name-label">Opponent:</span> <span
+                        id="p2-speed">0</span> km/h | Vectors: <span id="p2-vectors">0</span></div>
             </div>
         </footer>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
 </body>
 

@@ -52,36 +52,181 @@ const FL_Y1 = 1740 - (TRACK_WIDTH / 2);
 const FL_X2 = 1500;
 const FL_Y2 = 1740 + (TRACK_WIDTH / 2);
 
-let player;
-let gameState = 'playing'; // 'playing', 'gameover'
+let socket;
+let myPlayerId = null;
+let myPlayer = null;
+let opponentPlayer = null;
+let gameState = 'lobby'; // 'lobby', 'playing', 'gameover'
 let possibleMoves = [];
 let hoveredMove = null;
 
-function initGame() {
-    // Starting position: Behind finish line (x=1500), midway in width.
-    // X = 1460 (Grid 73)
-    // Y = 1740 (Grid 87)
-    player = {
-        id: 0,
-        x: 73, y: 87,
+// --- DOM Elements ---
+const lobbyContainer = document.getElementById('lobby-container');
+const gameContainer = document.getElementById('game-container');
+const joinBtn = document.getElementById('join-btn');
+const readyBtn = document.getElementById('ready-btn');
+const nameInput = document.getElementById('player-name-input');
+const playersList = document.getElementById('players-list');
+const playerCountSpan = document.getElementById('player-count');
+
+// --- Socket Connection & Lobby Logic ---
+socket = io('https://graphpaperrace-567699476890.us-east1.run.app', {
+    transports: ['websocket', 'polling']
+});
+
+socket.on('server_state', (data) => {
+    gameState = data.gameState;
+    const players = data.players;
+
+    // Update Lobby UI
+    if (gameState === 'lobby') {
+        lobbyContainer.classList.remove('hidden');
+        gameContainer.classList.add('hidden');
+        document.getElementById('game-over-overlay').classList.add('hidden');
+
+        const ids = Object.keys(players);
+        playerCountSpan.innerText = ids.length;
+
+        if (ids.length > 0) {
+            playersList.classList.remove('hidden');
+            playersList.innerHTML = '';
+
+            ids.forEach(id => {
+                const p = players[id];
+                const isMe = id === socket.id;
+                if (isMe) myPlayerId = id;
+
+                const badge = p.ready ? '<span class="status-badge ready">READY</span>' : '<span class="status-badge">WAITING</span>';
+                playersList.innerHTML += `<div class="player-row"><span>${p.name} ${isMe ? '(You)' : ''}</span> ${badge}</div>`;
+            });
+
+            // Show ready button if joined
+            if (players[socket.id]) {
+                document.getElementById('name-input-group').classList.add('hidden');
+                readyBtn.classList.remove('hidden');
+
+                if (players[socket.id].ready) {
+                    readyBtn.innerText = "WAITING FOR OPPONENT...";
+                    readyBtn.disabled = true;
+                    readyBtn.style.opacity = '0.5';
+                } else {
+                    readyBtn.innerText = "I'M READY";
+                    readyBtn.disabled = false;
+                    readyBtn.style.opacity = '1';
+                }
+            } else {
+                document.getElementById('name-input-group').classList.remove('hidden');
+                readyBtn.classList.add('hidden');
+            }
+        } else {
+            playersList.classList.add('hidden');
+            document.getElementById('name-input-group').classList.remove('hidden');
+            readyBtn.classList.add('hidden');
+        }
+    }
+});
+
+socket.on('game_started', () => {
+    gameState = 'playing';
+    lobbyContainer.classList.add('hidden');
+    gameContainer.classList.remove('hidden');
+    document.getElementById('game-over-overlay').classList.add('hidden');
+
+    initGamePositions();
+});
+
+socket.on('opponent_moved', (data) => {
+    if (opponentPlayer) {
+        opponentPlayer.x = data.x;
+        opponentPlayer.y = data.y;
+        opponentPlayer.vx = data.vx;
+        opponentPlayer.vy = data.vy;
+        opponentPlayer.moves = data.moves;
+        opponentPlayer.path.push({ x: data.x, y: data.y });
+        updateUI();
+        draw();
+    }
+});
+
+socket.on('game_over', (data) => {
+    gameState = 'gameover';
+
+    const overlay = document.getElementById('game-over-overlay');
+    const msgEl = document.getElementById('game-over-message');
+    const returnBtn = document.getElementById('return-lobby-btn');
+
+    let color = '#fff';
+    if (data.winner === myPlayer?.name) {
+        msgEl.innerText = "YOU WIN!";
+        color = '#00ffaa';
+    } else if (data.winner === "Tie") {
+        msgEl.innerText = "IT'S A TIE!";
+        color = '#ffd700';
+    } else {
+        msgEl.innerText = "YOU LOSE!";
+        color = '#ff0055';
+    }
+
+    // Add reason subtitle
+    msgEl.innerHTML += `<br><span style="font-size: 1.5rem; color: #aaa;">${data.reason}</span>`;
+
+    msgEl.style.color = color;
+    msgEl.style.textShadow = `0 0 20px ${color}`;
+
+    returnBtn.classList.add('hidden'); // Server auto-returns now, but keeping DOM element
+    overlay.classList.remove('hidden');
+
+    updateUI();
+    draw();
+});
+
+// UI Event Listeners
+joinBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    socket.emit('join_lobby', name);
+});
+
+readyBtn.addEventListener('click', () => {
+    readyBtn.innerText = "WAITING...";
+    socket.emit('player_ready', true);
+});
+
+// --- Game Logic ---
+function initGamePositions() {
+    // Determine start positions based on Socket ID sort to separate them slightly
+    // Center is roughly at X=1500 (grid 75)
+
+    myPlayer = {
+        name: document.getElementById('player-name-input').value || `Driver`,
+        x: 73, y: 87, // Player 1 default slot
         vx: 0, vy: 0,
         path: [{ x: 73, y: 87 }],
         crashed: false,
         finished: false,
         hasStarted: false,
-        laps: 0,
+        moves: 0,
         color: '#00ffaa',
         glow: '#00ffaa'
     };
 
-    // Center camera on player initially
-    camera.x = Math.max(0, Math.min((player.x * squareSize) - canvas.width / 2, WORLD_WIDTH - canvas.width));
-    camera.y = Math.max(0, Math.min((player.y * squareSize) - canvas.height / 2, WORLD_HEIGHT - canvas.height));
+    opponentPlayer = {
+        name: "Opponent",
+        x: 73, y: 89, // Player 2 slot (shifted down slightly)
+        vx: 0, vy: 0,
+        path: [{ x: 73, y: 89 }],
+        crashed: false,
+        finished: false,
+        hasStarted: false,
+        moves: 0,
+        color: '#ff00aa', // Pink
+        glow: '#ff00aa'
+    };
 
-    gameState = 'playing';
+    // Center camera on myPlayer initially
+    camera.x = Math.max(0, Math.min((myPlayer.x * squareSize) - canvas.width / 2, WORLD_WIDTH - canvas.width));
+    camera.y = Math.max(0, Math.min((myPlayer.y * squareSize) - canvas.height / 2, WORLD_HEIGHT - canvas.height));
+
     hoveredMove = null;
-
-    document.getElementById('game-over-overlay').classList.add('hidden');
     updateUI();
     calculatePossibleMoves();
     draw();
@@ -91,8 +236,8 @@ function calculatePossibleMoves() {
     possibleMoves = [];
     if (gameState !== 'playing') return;
 
-    const p = player;
-    if (p.crashed || p.finished) return;
+    const p = myPlayer;
+    if (!p || p.crashed || p.finished) return;
 
     const currentVx = p.vx;
     const currentVy = p.vy;
@@ -105,7 +250,7 @@ function calculatePossibleMoves() {
             const newX = p.x + newVx;
             const newY = p.y + newVy;
 
-            // Screen bounds (World bounds now)
+            // Screen bounds
             if (newX >= 0 && newX <= COLS && newY >= 0 && newY <= ROWS) {
                 possibleMoves.push({
                     x: newX,
@@ -239,7 +384,7 @@ canvas.addEventListener('click', (e) => {
     const dist = Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y);
     if (dist > 5) return;
 
-    const p = player;
+    const p = myPlayer;
     const move = hoveredMove;
 
     const oX = p.x;
@@ -250,6 +395,14 @@ canvas.addEventListener('click', (e) => {
     p.vy = move.vy;
     p.x = move.x;
     p.y = move.y;
+    p.moves++; // Increment moves vector counter
+
+    socket.emit('player_moved', {
+        x: p.x,
+        y: p.y,
+        vx: p.vx,
+        vy: p.vy
+    });
 
     if (move.crashes) {
         p.crashed = true;
@@ -281,35 +434,28 @@ canvas.addEventListener('click', (e) => {
 });
 
 function checkGameEnd() {
-    if (player.finished) {
-        endGame('Race Finished! Lap Complete!', player.color);
-    } else if (player.crashed) {
-        endGame('You Crashed!', '#ff0055');
+    if (myPlayer.finished) {
+        socket.emit('player_finished');
+    } else if (myPlayer.crashed) {
+        socket.emit('player_crashed');
     }
 }
 
-function endGame(message, color) {
-    gameState = 'gameover';
-    const overlay = document.getElementById('game-over-overlay');
-    const msgEl = document.getElementById('game-over-message');
-
-    msgEl.innerText = message;
-    msgEl.style.color = color;
-    msgEl.style.textShadow = `0 0 20px ${color}`;
-
-    overlay.classList.remove('hidden');
-
-    updateUI();
-    draw();
-}
+// Function removed: endGame is now handled cleanly by socket 'game_over' event
 
 function updateUI() {
-    document.getElementById('p1-speed').innerText = Math.round(Math.hypot(player.vx, player.vy) * 10) * 10;
-    document.getElementById('lap-count').innerText = `${player.laps}/1`;
-}
+    if (myPlayer) {
+        document.getElementById('p1-speed').innerText = Math.round(Math.hypot(myPlayer.vx, myPlayer.vy) * 10) * 10;
+        document.getElementById('p1-vectors').innerText = myPlayer.moves;
+        document.getElementById('p1-name-label').innerText = myPlayer.name + ":";
+    }
 
-document.getElementById('restart-btn').addEventListener('click', initGame);
-document.getElementById('play-again-btn').addEventListener('click', initGame);
+    if (opponentPlayer) {
+        document.getElementById('p2-speed').innerText = Math.round(Math.hypot(opponentPlayer.vx, opponentPlayer.vy) * 10) * 10;
+        document.getElementById('p2-vectors').innerText = opponentPlayer.moves;
+        document.getElementById('p2-name-label').innerText = opponentPlayer.name + ":";
+    }
+}
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -355,50 +501,55 @@ function draw() {
     ctx.setLineDash([]);
 
 
-    // 5. Draw Player Path
-    const p = player;
-    const offset = squareSize / 2;
-    if (p.path.length > 0) {
-        ctx.beginPath();
-        const start = p.path[0];
-        ctx.moveTo(start.x * squareSize + offset, start.y * squareSize + offset);
+    // 5. Draw Player Paths
+    const playersToDraw = [myPlayer, opponentPlayer].filter(p => p !== null);
 
-        for (let i = 1; i < p.path.length; i++) {
-            ctx.lineTo(p.path[i].x * squareSize + offset, p.path[i].y * squareSize + offset);
-        }
-
-        ctx.strokeStyle = p.color;
-
-        ctx.shadowBlur = p.crashed ? 0 : 10;
-        ctx.shadowColor = p.glow;
-
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
-        ctx.shadowBlur = 0;
-        for (let i = 0; i < p.path.length; i++) {
+    playersToDraw.forEach(p => {
+        const offset = squareSize / 2;
+        if (p.path.length > 0) {
             ctx.beginPath();
-            ctx.arc(p.path[i].x * squareSize + offset, p.path[i].y * squareSize + offset, 4, 0, Math.PI * 2);
-            ctx.fillStyle = p.color;
-            ctx.fill();
+            const start = p.path[0];
+            ctx.moveTo(start.x * squareSize + offset, start.y * squareSize + offset);
 
-            if (p.crashed && i === p.path.length - 1) {
-                ctx.strokeStyle = '#ff0055';
-                ctx.lineWidth = 2;
+            for (let i = 1; i < p.path.length; i++) {
+                ctx.lineTo(p.path[i].x * squareSize + offset, p.path[i].y * squareSize + offset);
+            }
+
+            ctx.strokeStyle = p.color;
+
+            ctx.shadowBlur = p.crashed ? 0 : 10;
+            ctx.shadowColor = p.glow;
+
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+            for (let i = 0; i < p.path.length; i++) {
                 ctx.beginPath();
-                const px = p.path[i].x * squareSize + offset;
-                const py = p.path[i].y * squareSize + offset;
-                ctx.moveTo(px - 8, py - 8);
-                ctx.lineTo(px + 8, py + 8);
-                ctx.moveTo(px + 8, py - 8);
-                ctx.lineTo(px - 8, py + 8);
-                ctx.stroke();
+                ctx.arc(p.path[i].x * squareSize + offset, p.path[i].y * squareSize + offset, 4, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.fill();
+
+                if (p.crashed && i === p.path.length - 1) {
+                    ctx.strokeStyle = '#ff0055';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    const px = p.path[i].x * squareSize + offset;
+                    const py = p.path[i].y * squareSize + offset;
+                    ctx.moveTo(px - 8, py - 8);
+                    ctx.lineTo(px + 8, py + 8);
+                    ctx.moveTo(px + 8, py - 8);
+                    ctx.lineTo(px - 8, py + 8);
+                    ctx.stroke();
+                }
             }
         }
-    }
+    });
 
     // 6. Draw Possible Moves
-    if (gameState === 'playing') {
+    if (gameState === 'playing' && myPlayer && !myPlayer.crashed && !myPlayer.finished) {
+        const offset = squareSize / 2;
+        const p = myPlayer;
         const inertiaX = p.x + p.vx;
         const inertiaY = p.y + p.vy;
 
@@ -425,7 +576,7 @@ function draw() {
             ctx.fillRect(hx, hy, squareSize, squareSize);
 
             // Draw 'X' inside square
-            ctx.strokeStyle = hoveredMove.crashes ? '#ff0055' : player.color;
+            ctx.strokeStyle = hoveredMove.crashes ? '#ff0055' : myPlayer.color;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(hx + 4, hy + 4);
@@ -477,10 +628,19 @@ function drawMinimap() {
     ctx.lineWidth = TRACK_WIDTH;
     ctx.stroke(trackCenterPath);
 
-    ctx.fillStyle = player.color;
-    ctx.beginPath();
-    ctx.arc(player.x * squareSize + (squareSize / 2), player.y * squareSize + (squareSize / 2), 60, 0, Math.PI * 2);
-    ctx.fill();
+    if (myPlayer) {
+        ctx.fillStyle = myPlayer.color;
+        ctx.beginPath();
+        ctx.arc(myPlayer.x * squareSize + (squareSize / 2), myPlayer.y * squareSize + (squareSize / 2), 60, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    if (opponentPlayer) {
+        ctx.fillStyle = opponentPlayer.color;
+        ctx.beginPath();
+        ctx.arc(opponentPlayer.x * squareSize + (squareSize / 2), opponentPlayer.y * squareSize + (squareSize / 2), 60, 0, Math.PI * 2);
+        ctx.fill();
+    }
 
     ctx.strokeStyle = 'rgba(255, 50, 50, 0.8)';
     ctx.lineWidth = 30;
@@ -488,6 +648,3 @@ function drawMinimap() {
 
     ctx.restore();
 }
-
-// Start
-initGame();

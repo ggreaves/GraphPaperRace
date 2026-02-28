@@ -156,8 +156,144 @@ footer {
     gap: 5px;
 }
 
+.stats-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.name-label {
+    min-width: 100px;
+    text-align: left;
+    color: #fff;
+    text-transform: uppercase;
+    font-size: 1.2rem;
+    align-self: center;
+}
+
 #p1-speed,
-#lap-count {
+#p1-vectors,
+#p1-name-label {
     color: var(--p1-color);
     text-shadow: 0 0 5px var(--p1-color);
+}
+
+#p2-speed,
+#p2-vectors,
+#p2-name-label {
+    color: var(--p2-color);
+    text-shadow: 0 0 5px var(--p2-color);
+}
+
+/* LOBBY STYLES */
+.lobby-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+    margin-top: -100px;
+    /* Center slightly higher */
+}
+
+.lobby-container.hidden {
+    display: none;
+}
+
+.game-container.hidden {
+    display: none;
+}
+
+.lobby-box {
+    background: rgba(10, 15, 25, 0.8);
+    border: 2px solid var(--wall-border);
+    border-radius: 8px;
+    padding: 40px;
+    width: 500px;
+    text-align: center;
+    box-shadow: 0 0 30px rgba(0, 229, 255, 0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+#name-input-group {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+input[type="text"] {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--grid-line);
+    color: #fff;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.2rem;
+    padding: 10px 15px;
+    border-radius: 4px;
+    outline: none;
+    width: 200px;
+}
+
+input[type="text"]:focus {
+    border-color: #00e5ff;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+}
+
+.players-list {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: left;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 20px;
+    border-radius: 4px;
+    border: 1px solid var(--grid-line);
+}
+
+.players-list.hidden {
+    display: none;
+}
+
+.player-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.3rem;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.player-row:last-child {
+    border-bottom: none;
+}
+
+.status-badge {
+    font-size: 0.9rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #444;
+}
+
+.status-badge.ready {
+    background: rgba(0, 255, 170, 0.2);
+    color: #00ffaa;
+    border: 1px solid #00ffaa;
+}
+
+#ready-btn {
+    margin-top: 20px;
+    background: rgba(0, 255, 170, 0.1);
+    border-color: #00ffaa;
+    color: #00ffaa;
+    font-size: 1.2rem;
+    padding: 15px;
+}
+
+#ready-btn:hover {
+    background: rgba(0, 255, 170, 0.3);
+    box-shadow: 0 0 20px rgba(0, 255, 170, 0.5);
+}
+
+#ready-btn.hidden {
+    display: none;
 }
