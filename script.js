@@ -166,10 +166,11 @@ function lineIntersect(p0_x, p0_y, p1_x, p1_y, p2_x, p2_y, p3_x, p3_y) {
 }
 
 function checkStartFinish(oldGX, oldGY, newGX, newGY) {
-    const oX = oldGX * squareSize;
-    const oY = oldGY * squareSize;
-    const nX = newGX * squareSize;
-    const nY = newGY * squareSize;
+    const offset = squareSize / 2;
+    const oX = oldGX * squareSize + offset;
+    const oY = oldGY * squareSize + offset;
+    const nX = newGX * squareSize + offset;
+    const nY = newGY * squareSize + offset;
 
     return lineIntersect(oX, oY, nX, nY, FL_X1, FL_Y1, FL_X2, FL_Y2);
 }
@@ -261,7 +262,7 @@ canvas.addEventListener('click', (e) => {
         // away from the start line. It takes many moves to complete a 3000x2400 track lap.
         if (p.hasStarted && p.path.length > 20 && checkStartFinish(oX, oY, p.x, p.y)) {
             // Check direction: Moving Left to Right (Increasing X)
-            if (p.x > oX || p.x * squareSize > FL_X1) {
+            if (p.x > oX || (p.x * squareSize + squareSize / 2) > FL_X1) {
                 p.laps++;
                 if (p.laps >= 1) {
                     p.finished = true;
@@ -356,13 +357,14 @@ function draw() {
 
     // 5. Draw Player Path
     const p = player;
+    const offset = squareSize / 2;
     if (p.path.length > 0) {
         ctx.beginPath();
         const start = p.path[0];
-        ctx.moveTo(start.x * squareSize, start.y * squareSize);
+        ctx.moveTo(start.x * squareSize + offset, start.y * squareSize + offset);
 
         for (let i = 1; i < p.path.length; i++) {
-            ctx.lineTo(p.path[i].x * squareSize, p.path[i].y * squareSize);
+            ctx.lineTo(p.path[i].x * squareSize + offset, p.path[i].y * squareSize + offset);
         }
 
         ctx.strokeStyle = p.color;
@@ -376,7 +378,7 @@ function draw() {
         ctx.shadowBlur = 0;
         for (let i = 0; i < p.path.length; i++) {
             ctx.beginPath();
-            ctx.arc(p.path[i].x * squareSize, p.path[i].y * squareSize, 4, 0, Math.PI * 2);
+            ctx.arc(p.path[i].x * squareSize + offset, p.path[i].y * squareSize + offset, 4, 0, Math.PI * 2);
             ctx.fillStyle = p.color;
             ctx.fill();
 
@@ -384,10 +386,12 @@ function draw() {
                 ctx.strokeStyle = '#ff0055';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(p.path[i].x * squareSize - 8, p.path[i].y * squareSize - 8);
-                ctx.lineTo(p.path[i].x * squareSize + 8, p.path[i].y * squareSize + 8);
-                ctx.moveTo(p.path[i].x * squareSize + 8, p.path[i].y * squareSize - 8);
-                ctx.lineTo(p.path[i].x * squareSize - 8, p.path[i].y * squareSize + 8);
+                const px = p.path[i].x * squareSize + offset;
+                const py = p.path[i].y * squareSize + offset;
+                ctx.moveTo(px - 8, py - 8);
+                ctx.lineTo(px + 8, py + 8);
+                ctx.moveTo(px + 8, py - 8);
+                ctx.lineTo(px - 8, py + 8);
                 ctx.stroke();
             }
         }
@@ -399,8 +403,8 @@ function draw() {
         const inertiaY = p.y + p.vy;
 
         ctx.beginPath();
-        ctx.moveTo(p.x * squareSize, p.y * squareSize);
-        ctx.lineTo(inertiaX * squareSize, inertiaY * squareSize);
+        ctx.moveTo(p.x * squareSize + offset, p.y * squareSize + offset);
+        ctx.lineTo(inertiaX * squareSize + offset, inertiaY * squareSize + offset);
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.setLineDash([5, 5]);
         ctx.lineWidth = 2;
@@ -408,19 +412,26 @@ function draw() {
         ctx.setLineDash([]);
 
         if (hoveredMove) {
-            ctx.beginPath();
-            ctx.arc(hoveredMove.x * squareSize, hoveredMove.y * squareSize, 8, 0, Math.PI * 2);
+            const hx = hoveredMove.x * squareSize;
+            const hy = hoveredMove.y * squareSize;
 
+            ctx.beginPath();
             if (hoveredMove.crashes) {
-                ctx.fillStyle = 'rgba(255, 0, 85, 0.8)';
+                ctx.fillStyle = 'rgba(255, 0, 85, 0.5)';
             } else {
-                ctx.fillStyle = player.color;
+                ctx.fillStyle = 'rgba(0, 255, 170, 0.4)'; // Transparent glow fill
             }
 
-            ctx.fill();
+            ctx.fillRect(hx, hy, squareSize, squareSize);
 
-            ctx.strokeStyle = '#fff';
+            // Draw 'X' inside square
+            ctx.strokeStyle = hoveredMove.crashes ? '#ff0055' : player.color;
             ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(hx + 4, hy + 4);
+            ctx.lineTo(hx + squareSize - 4, hy + squareSize - 4);
+            ctx.moveTo(hx + squareSize - 4, hy + 4);
+            ctx.lineTo(hx + 4, hy + squareSize - 4);
             ctx.stroke();
         }
     }
@@ -468,7 +479,7 @@ function drawMinimap() {
 
     ctx.fillStyle = player.color;
     ctx.beginPath();
-    ctx.arc(player.x * squareSize, player.y * squareSize, 60, 0, Math.PI * 2);
+    ctx.arc(player.x * squareSize + (squareSize / 2), player.y * squareSize + (squareSize / 2), 60, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.strokeStyle = 'rgba(255, 50, 50, 0.8)';
