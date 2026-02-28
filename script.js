@@ -71,6 +71,11 @@ nameInput = document.getElementById('player-name-input');
 playersList = document.getElementById('players-list');
 playerCountSpan = document.getElementById('player-count');
 
+// --- Socket Connection & Lobby Logic ---
+socket = io('https://graphpaperrace-567699476890.us-east1.run.app', {
+    transports: ['websocket', 'polling']
+});
+
 // UI Event Listeners
 joinBtn.addEventListener('click', () => {
     const name = nameInput.value.trim();
@@ -80,11 +85,6 @@ joinBtn.addEventListener('click', () => {
 readyBtn.addEventListener('click', () => {
     readyBtn.innerText = "WAITING...";
     socket.emit('player_ready', true);
-});
-
-// --- Socket Connection & Lobby Logic ---
-socket = io('https://graphpaperrace-567699476890.us-east1.run.app', {
-    transports: ['websocket', 'polling']
 });
 
 socket.on('server_state', (data) => {

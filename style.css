@@ -195,12 +195,8 @@ footer {
     /* Center slightly higher */
 }
 
-.lobby-container.hidden {
-    display: none;
-}
-
-.game-container.hidden {
-    display: none;
+.hidden {
+    display: none !important;
 }
 
 .lobby-box {
