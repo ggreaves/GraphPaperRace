@@ -307,7 +307,7 @@ function startBotLoop() {
         }
 
         let bestMove = null;
-        let bestDist = Infinity;
+        let bestScore = -Infinity;
 
         for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
@@ -316,11 +316,33 @@ function startBotLoop() {
                 const newX = opponentPlayer.x + newVx;
                 const newY = opponentPlayer.y + newVy;
 
-                if (!checkTrackCollision(newX, newY)) continue;
+                if (checkTrackCollision(newX, newY)) { // checkTrackCollision returns true if it crashes! Oh wait let's check:
+                    // checkTrackCollision returns true if it crashes, false if it's safe. Wait, the code says "return !isTouchingTrack; // Crashes if NOT touching". So true means it CRASHES.
+                    continue; // Skip moves that crash
+                }
 
-                const d = Math.hypot(target.x - (newX + newVx * 2), target.y - (newY + newVy * 2));
-                if (d < bestDist) {
-                    bestDist = d;
+                // Calculate position 1 move ahead with new velocity
+                const projectedX1 = newX + newVx;
+                const projectedY1 = newY + newVy;
+
+                // Score based on distance to target from current move AND projected future move
+                const dist0 = Math.hypot(target.x - newX, target.y - newY);
+                const dist1 = Math.hypot(target.x - projectedX1, target.y - projectedY1);
+
+                let score = -dist0 - (dist1 * 0.5); // Negative distance because we want to maximize score (minimize distance)
+
+                // Penalize high speeds a bit so it doesn't just yeet itself off the track
+                const speedSq = newVx * newVx + newVy * newVy;
+                score -= speedSq * 0.2;
+
+                // Penalize if the projected NEXT move would crash
+                // This gives us a 1-move lookahead
+                if (checkTrackCollision(projectedX1, projectedY1)) {
+                    score -= 1000;
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
                     bestMove = { x: newX, y: newY, vx: newVx, vy: newVy };
                 }
             }
